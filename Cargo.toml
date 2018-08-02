@@ -1,0 +1,13 @@
+[package]
+name = "rust-pcap2"
+version = "0.1.0"
+authors = ["Flier Lu <flier.lu@gmail.com>"]
+
+[dependencies]
+log = "0.4"
+failure = "0.1"
+num-traits = "0.2"
+num-derive = "0.2"
+byteorder = "1.2"
+nom = "4.0"
+memmap = "0.6"
