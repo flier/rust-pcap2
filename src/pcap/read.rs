@@ -54,6 +54,8 @@ where
 pub type GetPackets<'a> = get::Packets<'a>;
 
 mod get {
+    use nom::Endianness;
+
     use super::*;
     use pcap::ReadPacketExt;
 
@@ -71,7 +73,7 @@ mod get {
 
     enum State<'a> {
         Init(&'a [u8]),
-        Parsed(FileHeader, &'a [u8]),
+        Parsed(&'a [u8], Endianness),
         Finished,
     }
 
@@ -83,14 +85,13 @@ mod get {
                 self.state = match self.state {
                     State::Init(remaining) => {
                         if let Ok((remaining, file_header)) = FileHeader::parse(remaining) {
-                            State::Parsed(file_header, remaining)
+                            State::Parsed(remaining, file_header.magic().endianness())
                         } else {
                             State::Finished
                         }
                     }
-                    State::Parsed(ref file_header, mut remaining) => {
-                        if let Ok(packet) = remaining.read_packet(file_header.magic().endianness())
-                        {
+                    State::Parsed(mut remaining, endianness) => {
+                        if let Ok(packet) = remaining.read_packet(endianness) {
                             return Some(packet);
                         } else {
                             State::Finished
@@ -120,6 +121,8 @@ pub type ReadPackets<'a, T> = read::Packets<'a, T>;
 mod read {
     use std::cell::Cell;
 
+    use nom::Endianness;
+
     use super::*;
     use pcap::ReadPacketExt;
 
@@ -139,7 +142,7 @@ mod read {
 
     enum State<T> {
         Init(BufReader<T>),
-        Parsed(BufReader<T>, FileHeader),
+        Parsed(BufReader<T>, Endianness),
         Finished,
     }
 
@@ -166,12 +169,14 @@ mod read {
                                 .read_exact(&mut buf)
                                 .map_err(|err| err.into())
                                 .and_then(|_| FileHeader::parse(&buf))
-                                .map(|(_, file_header)| State::Parsed(reader, file_header))
+                                .map(|(_, file_header)| {
+                                    State::Parsed(reader, file_header.magic().endianness())
+                                })
                                 .unwrap_or(State::Finished),
                         );
                     }
-                    State::Parsed(mut reader, file_header) => {
-                        return reader.read_packet(file_header.magic().endianness()).ok()
+                    State::Parsed(mut reader, endianness) => {
+                        return reader.read_packet(endianness).ok()
                     }
                     State::Finished => {
                         return None;
