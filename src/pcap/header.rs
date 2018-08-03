@@ -41,6 +41,8 @@ pub const DEFAULT_VERSION_MAJOR: u16 = 2;
 /// only supported minor version
 pub const DEFAULT_VERSION_MINOR: u16 = 4;
 
+pub const DEFAULT_SNAPLEN: u32 = u16::max_value() as u32;
+
 /// Known identifiers for the types of packets that might be captured in a `pcap` file. This tells
 /// you how to interpret the packets you receive.
 ///
@@ -192,7 +194,7 @@ impl Default for Header {
             version_minor: DEFAULT_VERSION_MINOR,
             thiszone: 0,
             sigfigs: 0,
-            snaplen: 0xFFFF,
+            snaplen: DEFAULT_SNAPLEN,
             network: LinkType::NULL as u32,
         }
     }
@@ -289,7 +291,7 @@ mod test {
             assert_eq!(header.version_minor, DEFAULT_VERSION_MINOR);
             assert_eq!(header.thiszone, 0);
             assert_eq!(header.sigfigs, 0);
-            assert_eq!(header.snaplen, 0xFFFF);
+            assert_eq!(header.snaplen, DEFAULT_SNAPLEN);
             assert_eq!(header.network, 101);
             assert_eq!(header.link_type(), LinkType::RAW);
         }
@@ -304,7 +306,7 @@ mod test {
                 version_minor: DEFAULT_VERSION_MINOR,
                 thiszone: 0,
                 sigfigs: 0,
-                snaplen: 0xFFFF,
+                snaplen: DEFAULT_SNAPLEN,
                 network: LinkType::RAW as u32,
             };
 
