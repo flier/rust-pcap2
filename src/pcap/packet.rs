@@ -3,7 +3,7 @@ use std::io::{BufReader, Read, Write};
 use std::mem;
 use std::ops::{Deref, DerefMut};
 
-use byteorder::{BigEndian, ByteOrder, LittleEndian, WriteBytesExt};
+use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{Error, PcapError, Result};
@@ -90,22 +90,6 @@ named_args!(pub parse_packet_header(endianness: Endianness)<Header>,
     )
 );
 
-pub trait AsEndianness {
-    fn endianness() -> Endianness;
-}
-
-impl AsEndianness for LittleEndian {
-    fn endianness() -> Endianness {
-        Endianness::Little
-    }
-}
-
-impl AsEndianness for BigEndian {
-    fn endianness() -> Endianness {
-        Endianness::Big
-    }
-}
-
 pub trait ReadPacketExt<'a> {
     fn read_packet(&mut self, endianness: Endianness) -> Result<Packet<'a>>;
 }
@@ -189,6 +173,8 @@ impl<'a, W: Write + ?Sized> WritePacketExt<'a, Packet<'a>> for W {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use byteorder::{BigEndian, LittleEndian};
 
     use pcap::tests::PACKETS;
     use pcap::FileHeader;

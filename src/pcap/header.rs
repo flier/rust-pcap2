@@ -6,6 +6,7 @@ use nom::*;
 use num_traits::FromPrimitive;
 
 use errors::{PcapError, Result};
+use pcap::AsEndianness;
 
 #[repr(u32)]
 #[derive(Copy, Clone, Debug, PartialEq, FromPrimitive)]
@@ -186,10 +187,14 @@ pub struct Header {
     pub network: u32,
 }
 
-impl Default for Header {
-    fn default() -> Self {
+impl Header {
+    pub fn new<T: AsEndianness>() -> Self {
         Header {
-            magic_number: Magic::NanoSecondResolution as u32,
+            magic_number: if NativeEndian::endianness() == T::endianness() {
+                Magic::NanoSecondResolution
+            } else {
+                Magic::NanoSecondResolutionByteSwap
+            } as u32,
             version_major: DEFAULT_VERSION_MAJOR,
             version_minor: DEFAULT_VERSION_MINOR,
             thiszone: 0,
@@ -198,9 +203,7 @@ impl Default for Header {
             network: LinkType::NULL as u32,
         }
     }
-}
 
-impl Header {
     pub fn parse(buf: &[u8]) -> Result<(&[u8], Self)> {
         parse_header(buf).map_err(|err| PcapError::from(err).into())
     }
@@ -221,7 +224,7 @@ impl Header {
 #[cfg_attr(rustfmt, rustfmt_skip)]
 named!(parse_header<Header>,
     do_parse!(
-        magic_number: call!(le_u32) >>
+        magic_number: map!(take!(4), NativeEndian::read_u32) >>
         endianness: switch!(expr_opt!(Magic::from_u32(magic_number)),
             Magic::Normal                       => value!(Endianness::Little) |
             Magic::NanoSecondResolution         => value!(Endianness::Little) |

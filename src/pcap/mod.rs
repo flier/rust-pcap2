@@ -1,13 +1,15 @@
 use std::borrow::Cow;
 use std::time::SystemTime;
 
+use byteorder::{BigEndian, LittleEndian};
+use nom::Endianness;
+
 pub use self::header::{
     Header as FileHeader, LinkType, Magic, WriteHeaderExt, DEFAULT_VERSION_MAJOR,
     DEFAULT_VERSION_MINOR,
 };
 pub use self::packet::{
-    AsEndianness, Header as PacketHeader, Packet as RawPacket, ReadPacketExt, WritePacket,
-    WritePacketExt,
+    Header as PacketHeader, Packet as RawPacket, ReadPacketExt, WritePacket, WritePacketExt,
 };
 pub use self::read::{mmap, open, parse, read, ParsePackets, ReadPackets, Reader};
 pub use self::write::{create, Writer};
@@ -16,6 +18,22 @@ mod header;
 mod packet;
 mod read;
 mod write;
+
+pub trait AsEndianness {
+    fn endianness() -> Endianness;
+}
+
+impl AsEndianness for LittleEndian {
+    fn endianness() -> Endianness {
+        Endianness::Little
+    }
+}
+
+impl AsEndianness for BigEndian {
+    fn endianness() -> Endianness {
+        Endianness::Big
+    }
+}
 
 pub struct Packet<'a> {
     pub timestamp: SystemTime,
@@ -70,6 +88,10 @@ pub mod tests {
             (&PACKET_BE_US, Magic::ByteSwap),
             (&PACKET_BE_NS, Magic::NanoSecondResolutionByteSwap),
             (&PACKET_LE_US, Magic::Normal),
+            (&PACKET_LE_NS, Magic::NanoSecondResolution),
+        ];
+        pub static ref NANO_PACKETS: Vec<(&'static [u8], Magic)> = vec![
+            (&PACKET_BE_NS, Magic::NanoSecondResolutionByteSwap),
             (&PACKET_LE_NS, Magic::NanoSecondResolution),
         ];
     }
