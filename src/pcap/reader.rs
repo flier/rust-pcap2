@@ -10,21 +10,21 @@ use memmap::Mmap;
 use errors::Result;
 use pcap::{FileHeader, Packet, RawPacket};
 
-pub fn read<'a, R: Read>(read: R) -> Result<Reader<'a, BufReader<R>>> {
-    Ok(Reader::new(BufReader::new(read)))
-}
-
 pub fn open<'a, P: AsRef<Path>>(path: P) -> Result<Reader<'a, BufReader<File>>> {
     let f = File::open(path)?;
 
-    Ok(Reader::new(BufReader::new(f)))
+    read(f)
+}
+
+pub fn read<'a, R: Read>(read: R) -> Result<Reader<'a, BufReader<R>>> {
+    Ok(Reader::new(BufReader::new(read)))
 }
 
 pub fn mmap<'a, P: AsRef<Path>>(path: P) -> Result<Reader<'a, Cursor<Mmap>>> {
     let f = File::open(path)?;
     let mmap = unsafe { Mmap::map(&f)? };
 
-    Ok(Reader::new(Cursor::new(mmap)))
+    parse(mmap)
 }
 
 pub fn parse<'a, T: AsRef<[u8]>>(buf: T) -> Result<Reader<'a, Cursor<T>>> {
