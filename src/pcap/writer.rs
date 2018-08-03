@@ -5,13 +5,11 @@ use std::ops::{Deref, DerefMut};
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
-use byteorder::{ByteOrder, NativeEndian};
+use byteorder::{BigEndian, LittleEndian, NativeEndian};
+use nom::Endianness;
 
 use errors::Result;
-use pcap::{
-    AsEndianness, FileHeader, LinkType, Packet, PacketHeader, WriteHeaderExt, WritePacket,
-    WritePacketExt,
-};
+use pcap::{AsEndianness, FileHeader, LinkType, Packet, PacketHeader, WriteHeaderExt, WritePacket};
 
 pub fn create<P: AsRef<Path>, W>(path: P) -> Result<Builder<BufWriter<File>>> {
     let f = File::create(path)?;
@@ -58,8 +56,15 @@ where
     W: Write,
 {
     #[must_use]
-    pub fn build<T: ByteOrder>(mut self) -> Result<Writer<W>> {
-        self.w.w.write_header::<T>(&self.w.file_header)?;
+    pub fn build(mut self) -> Result<Writer<W>> {
+        match self.w.file_header.magic().endianness() {
+            Endianness::Little => {
+                self.w.w.write_header::<LittleEndian>(&self.w.file_header)?;
+            }
+            Endianness::Big => {
+                self.w.w.write_header::<BigEndian>(&self.w.file_header)?;
+            }
+        }
 
         Ok(self.w)
     }
@@ -90,24 +95,11 @@ impl<W> DerefMut for Writer<W> {
     }
 }
 
-impl<W> WritePacket for Writer<W>
+impl<W> Writer<W>
 where
     W: Write,
 {
-    fn write_packet_data<T: ByteOrder, B: AsRef<[u8]>>(
-        &mut self,
-        header: &PacketHeader,
-        payload: B,
-    ) -> Result<usize> {
-        self.w.write_packet_data::<T, _>(header, payload)
-    }
-}
-
-impl<'a, W> WritePacketExt<'a, Packet<'a>> for Writer<W>
-where
-    W: Write,
-{
-    fn write_packet<T: ByteOrder>(&mut self, packet: &Packet<'a>) -> Result<usize> {
+    pub fn write_packet<'a>(&mut self, packet: &Packet<'a>) -> Result<usize> {
         let d = packet.timestamp.duration_since(UNIX_EPOCH)?;
 
         let incl_len = cmp::min(packet.payload.len() as u32, self.file_header.snaplen);
@@ -120,7 +112,25 @@ where
             orig_len: packet.actual_length as u32,
         };
 
-        self.write_packet_data::<T, _>(&packet_header, &payload)
+        match self.file_header.magic().endianness() {
+            Endianness::Little => self.w
+                .write_packet_data::<LittleEndian, _>(&packet_header, &payload),
+            Endianness::Big => self.w
+                .write_packet_data::<BigEndian, _>(&packet_header, &payload),
+        }
+    }
+
+    pub fn write_packets<'a, I: IntoIterator<Item = Packet<'a>>>(
+        &mut self,
+        iter: I,
+    ) -> Result<usize> {
+        let mut wrote = 0;
+
+        for packet in iter {
+            wrote += self.write_packet(&packet)?;
+        }
+
+        Ok(wrote)
     }
 }
 #[cfg(test)]
@@ -146,19 +156,12 @@ mod test {
             };
 
             let mut data = vec![];
-            let mut writer = match magic.endianness() {
-                Endianness::Little => Builder::new::<LittleEndian>(data)
-                    .link_type(LinkType::RAW)
-                    .build::<LittleEndian>(),
-                Endianness::Big => Builder::new::<BigEndian>(data)
-                    .link_type(LinkType::RAW)
-                    .build::<BigEndian>(),
-            }.unwrap();
-
-            let wrote = match magic.endianness() {
-                Endianness::Little => writer.write_packets::<LittleEndian, _>(once(packet)),
-                Endianness::Big => writer.write_packets::<BigEndian, _>(once(packet)),
-            }.unwrap();
+            let mut builder = match magic.endianness() {
+                Endianness::Little => Builder::new::<LittleEndian>(data),
+                Endianness::Big => Builder::new::<BigEndian>(data),
+            };
+            let mut writer = builder.link_type(LinkType::RAW).build().unwrap();
+            let wrote = writer.write_packets(once(packet)).unwrap();
 
             assert_eq!(FileHeader::size() + wrote, buf.len());
             assert_eq!(writer.as_slice(), *buf);
