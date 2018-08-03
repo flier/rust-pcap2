@@ -1,17 +1,41 @@
-mod header;
-mod packet;
-mod read;
-mod write;
+use std::borrow::Cow;
+use std::time::SystemTime;
 
 pub use self::header::{
     Header as FileHeader, LinkType, Magic, WriteHeaderExt, DEFAULT_VERSION_MAJOR,
     DEFAULT_VERSION_MINOR,
 };
 pub use self::packet::{
-    AsEndianness, Header as PacketHeader, Packet, ReadPacketExt, WritePacketExt,
+    AsEndianness, Header as PacketHeader, Packet as RawPacket, ReadPacketExt, WritePacket,
+    WritePacketExt,
 };
 pub use self::read::{mmap, open, parse, read, ParsePackets, ReadPackets, Reader};
 pub use self::write::{create, Writer};
+
+mod header;
+mod packet;
+mod read;
+mod write;
+
+pub struct Packet<'a> {
+    pub timestamp: SystemTime,
+    pub actual_length: usize,
+    pub payload: Cow<'a, [u8]>,
+}
+
+impl<'a> Packet<'a> {
+    pub fn new(payload: &'a [u8]) -> Self {
+        Self::with_timestamp(payload, SystemTime::now())
+    }
+
+    pub fn with_timestamp(payload: &'a [u8], timestamp: SystemTime) -> Packet<'a> {
+        Packet {
+            timestamp,
+            actual_length: payload.len(),
+            payload: payload.into(),
+        }
+    }
+}
 
 #[cfg(test)]
 pub mod tests {

@@ -3,11 +3,12 @@ use std::io::{BufReader, Cursor, Read};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
+use std::time::{Duration, UNIX_EPOCH};
 
 use memmap::Mmap;
 
 use errors::Result;
-use pcap::{FileHeader, Packet};
+use pcap::{FileHeader, Packet, RawPacket};
 
 pub fn read<'a, R: Read>(read: R) -> Result<Reader<'a, BufReader<R>>> {
     Ok(Reader::new(BufReader::new(read)))
@@ -58,6 +59,31 @@ impl<'a, R> DerefMut for Reader<'a, R> {
     }
 }
 
+impl<'a> From<(RawPacket<'a>, i32, bool)> for Packet<'a> {
+    fn from(args: (RawPacket<'a>, i32, bool)) -> Self {
+        let (raw_packet, utc_offset, is_nanosecond_resolution) = args;
+
+        let secs = u64::from(raw_packet.ts_sec);
+        let secs = if utc_offset < 0 {
+            secs.checked_sub(utc_offset.abs() as u64)
+        } else {
+            secs.checked_add(utc_offset as u64)
+        }.unwrap_or_default();
+
+        let nanos = if is_nanosecond_resolution {
+            raw_packet.ts_usec
+        } else {
+            raw_packet.ts_usec.checked_mul(1000).unwrap_or_default()
+        };
+
+        Packet {
+            timestamp: UNIX_EPOCH + Duration::new(secs, nanos % 1_000_000_000),
+            actual_length: raw_packet.orig_len as usize,
+            payload: raw_packet.payload,
+        }
+    }
+}
+
 impl<'a, T> IntoIterator for &'a Reader<'a, Cursor<T>>
 where
     T: AsRef<[u8]>,
@@ -92,7 +118,7 @@ mod parse {
 
     enum State<'a> {
         Init(&'a [u8]),
-        Parsed(&'a [u8], Endianness, bool),
+        Parsed(&'a [u8], Endianness, i32, bool),
         Finished,
     }
 
@@ -105,21 +131,37 @@ mod parse {
                     State::Init(remaining) => {
                         self.state =
                             if let Ok((remaining, file_header)) = FileHeader::parse(remaining) {
+                                let magic = file_header.magic();
+
                                 State::Parsed(
                                     remaining,
-                                    file_header.magic().endianness(),
-                                    file_header.is_nanosecond_resolution(),
+                                    magic.endianness(),
+                                    file_header.thiszone,
+                                    magic.is_nanosecond_resolution(),
                                 )
                             } else {
                                 State::Finished
                             }
                     }
-                    State::Parsed(mut remaining, endianness, is_nanosecond_resolution) => {
+                    State::Parsed(
+                        mut remaining,
+                        endianness,
+                        utc_offset,
+                        is_nanosecond_resolution,
+                    ) => {
                         if let Ok(packet) = remaining.read_packet(endianness) {
-                            self.state =
-                                State::Parsed(remaining, endianness, is_nanosecond_resolution);
+                            self.state = State::Parsed(
+                                remaining,
+                                endianness,
+                                utc_offset,
+                                is_nanosecond_resolution,
+                            );
 
-                            return Some(packet);
+                            return Some(Packet::from((
+                                packet,
+                                utc_offset,
+                                is_nanosecond_resolution,
+                            )));
                         }
 
                         self.state = State::Finished;
@@ -169,7 +211,7 @@ mod read {
 
     enum State<R> {
         Init(BufReader<R>),
-        Parsed(BufReader<R>, Endianness),
+        Parsed(BufReader<R>, Endianness, i32, bool),
         Finished,
     }
 
@@ -197,16 +239,32 @@ mod read {
                                 .map_err(|err| err.into())
                                 .and_then(|_| FileHeader::parse(&buf))
                                 .map(|(_, file_header)| {
-                                    State::Parsed(reader, file_header.magic().endianness())
+                                    let magic = file_header.magic();
+
+                                    State::Parsed(
+                                        reader,
+                                        magic.endianness(),
+                                        file_header.thiszone,
+                                        magic.is_nanosecond_resolution(),
+                                    )
                                 })
                                 .unwrap_or(State::Finished),
                         );
                     }
-                    State::Parsed(mut reader, endianness) => {
+                    State::Parsed(mut reader, endianness, utc_offset, is_nanosecond_resolution) => {
                         if let Ok(packet) = reader.read_packet(endianness) {
-                            self.state = Cell::new(State::Parsed(reader, endianness));
+                            self.state = Cell::new(State::Parsed(
+                                reader,
+                                endianness,
+                                utc_offset,
+                                is_nanosecond_resolution,
+                            ));
 
-                            return Some(packet);
+                            return Some(Packet::from((
+                                packet,
+                                utc_offset,
+                                is_nanosecond_resolution,
+                            )));
                         }
                     }
                     State::Finished => {
@@ -227,15 +285,23 @@ mod test {
 
     #[test]
     pub fn test_read_packets() {
-        for (buf, _) in PACKETS.iter() {
+        for (buf, magic) in PACKETS.iter() {
             let mut packets = read(*buf).unwrap().into_iter();
 
             let packet = packets.next().unwrap();
+            let ts = packet.timestamp.duration_since(UNIX_EPOCH).unwrap();
 
-            assert_eq!(packet.header.ts_sec, 0x56506e1a);
-            assert_eq!(packet.header.ts_usec, 0x182b0ad0);
-            assert_eq!(packet.header.incl_len, 4);
-            assert_eq!(packet.header.orig_len, 60);
+            assert_eq!(ts.as_secs(), 0x56506e1a);
+            assert_eq!(
+                ts.subsec_nanos(),
+                if magic.is_nanosecond_resolution() {
+                    0x182b0ad0
+                } else {
+                    0
+                }
+            );
+
+            assert_eq!(packet.actual_length, 60);
             assert_eq!(packet.payload, Cow::from(&[0x44u8, 0x41, 0x54, 0x41][..]));
 
             assert!(packets.next().is_none());
@@ -244,16 +310,24 @@ mod test {
 
     #[test]
     pub fn test_parse_packets() {
-        for (buf, _) in PACKETS.iter() {
+        for (buf, magic) in PACKETS.iter() {
             let reader = parse(buf).unwrap();
             let mut packets = reader.into_iter();
 
             let packet = packets.next().unwrap();
+            let ts = packet.timestamp.duration_since(UNIX_EPOCH).unwrap();
 
-            assert_eq!(packet.header.ts_sec, 0x56506e1a);
-            assert_eq!(packet.header.ts_usec, 0x182b0ad0);
-            assert_eq!(packet.header.incl_len, 4);
-            assert_eq!(packet.header.orig_len, 60);
+            assert_eq!(ts.as_secs(), 0x56506e1a);
+            assert_eq!(
+                ts.subsec_nanos(),
+                if magic.is_nanosecond_resolution() {
+                    0x182b0ad0
+                } else {
+                    0
+                }
+            );
+
+            assert_eq!(packet.actual_length, 60);
             assert_eq!(packet.payload, Cow::from(&[0x44u8, 0x41, 0x54, 0x41][..]));
 
             assert!(packets.next().is_none());

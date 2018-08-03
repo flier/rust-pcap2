@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::io::{BufReader, Read, Write};
 use std::mem;
+use std::ops::{Deref, DerefMut};
 
 use byteorder::{BigEndian, ByteOrder, LittleEndian, WriteBytesExt};
 use nom::*;
@@ -11,6 +12,20 @@ use errors::{Error, PcapError, Result};
 pub struct Packet<'a> {
     pub header: Header,
     pub payload: Cow<'a, [u8]>,
+}
+
+impl<'a> Deref for Packet<'a> {
+    type Target = Header;
+
+    fn deref(&self) -> &Self::Target {
+        &self.header
+    }
+}
+
+impl<'a> DerefMut for Packet<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.header
+    }
 }
 
 impl<'a> Packet<'a> {
@@ -125,21 +140,18 @@ impl<'a> ReadPacketExt<'a> for &'a [u8] {
     }
 }
 
-pub trait WritePacketExt {
+pub trait WritePacket {
     fn write_packet_data<T: ByteOrder, B: AsRef<[u8]>>(
         &mut self,
         header: &Header,
         payload: B,
     ) -> Result<usize>;
+}
 
-    fn write_packet<'a, T: ByteOrder>(&mut self, packet: &Packet<'a>) -> Result<usize> {
-        self.write_packet_data::<T, _>(&packet.header, &packet.payload)
-    }
+pub trait WritePacketExt<'a, P>: WritePacket {
+    fn write_packet<T: ByteOrder>(&mut self, packet: &P) -> Result<usize>;
 
-    fn write_packets<'a, T: ByteOrder, I: IntoIterator<Item = Packet<'a>>>(
-        &mut self,
-        iter: I,
-    ) -> Result<usize> {
+    fn write_packets<T: ByteOrder, I: IntoIterator<Item = P>>(&mut self, iter: I) -> Result<usize> {
         let mut wrote = 0;
 
         for packet in iter {
@@ -150,7 +162,7 @@ pub trait WritePacketExt {
     }
 }
 
-impl<W: Write + ?Sized> WritePacketExt for W {
+impl<W: Write + ?Sized> WritePacket for W {
     fn write_packet_data<T: ByteOrder, B: AsRef<[u8]>>(
         &mut self,
         header: &Header,
@@ -165,6 +177,12 @@ impl<W: Write + ?Sized> WritePacketExt for W {
         let payload_len = self.write(payload.as_ref())?;
 
         Ok(header_len + payload_len)
+    }
+}
+
+impl<'a, W: Write + ?Sized> WritePacketExt<'a, Packet<'a>> for W {
+    fn write_packet<T: ByteOrder>(&mut self, packet: &Packet<'a>) -> Result<usize> {
+        self.write_packet_data::<T, _>(&packet.header, &packet.payload)
     }
 }
 
@@ -188,10 +206,10 @@ mod tests {
             let packet = remaining.read_packet(magic.endianness()).unwrap();
 
             assert!(remaining.is_empty());
-            assert_eq!(packet.header.ts_sec, 0x56506e1a);
-            assert_eq!(packet.header.ts_usec, 0x182b0ad0);
-            assert_eq!(packet.header.incl_len, 4);
-            assert_eq!(packet.header.orig_len, 60);
+            assert_eq!(packet.ts_sec, 0x56506e1a);
+            assert_eq!(packet.ts_usec, 0x182b0ad0);
+            assert_eq!(packet.incl_len, 4);
+            assert_eq!(packet.orig_len, 60);
             assert_eq!(packet.payload, Cow::from(&[0x44u8, 0x41, 0x54, 0x41][..]));
         }
     }
@@ -204,10 +222,10 @@ mod tests {
             let packet = reader.read_packet(magic.endianness()).unwrap();
 
             assert!(reader.get_ref().is_empty());
-            assert_eq!(packet.header.ts_sec, 0x56506e1a);
-            assert_eq!(packet.header.ts_usec, 0x182b0ad0);
-            assert_eq!(packet.header.incl_len, 4);
-            assert_eq!(packet.header.orig_len, 60);
+            assert_eq!(packet.ts_sec, 0x56506e1a);
+            assert_eq!(packet.ts_usec, 0x182b0ad0);
+            assert_eq!(packet.incl_len, 4);
+            assert_eq!(packet.orig_len, 60);
             assert_eq!(packet.payload, Cow::from(&[0x44u8, 0x41, 0x54, 0x41][..]));
         }
     }

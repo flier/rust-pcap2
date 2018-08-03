@@ -27,6 +27,13 @@ impl Magic {
             Magic::ByteSwap | Magic::NanoSecondResolutionByteSwap => Endianness::Big,
         }
     }
+
+    pub fn is_nanosecond_resolution(self) -> bool {
+        match self {
+            Magic::Normal | Magic::ByteSwap => false,
+            Magic::NanoSecondResolution | Magic::NanoSecondResolutionByteSwap => true,
+        }
+    }
 }
 
 /// only supported major version
@@ -202,10 +209,6 @@ impl Header {
 
     pub fn magic(&self) -> Magic {
         Magic::from_u32(self.magic_number).unwrap()
-    }
-
-    pub fn is_nanosecond_resolution(&self) -> bool {
-        self.magic_number == Magic::NanoSecondResolution as u32
     }
 
     pub fn link_type(&self) -> LinkType {
