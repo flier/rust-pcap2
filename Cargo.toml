@@ -1,5 +1,5 @@
 [package]
-name = "rust-pcap2"
+name = "pcap2"
 version = "0.1.0"
 authors = ["Flier Lu <flier.lu@gmail.com>"]
 
