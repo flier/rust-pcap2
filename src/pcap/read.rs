@@ -4,10 +4,9 @@ use std::marker::PhantomData;
 use std::path::Path;
 
 use memmap::Mmap;
-use nom::Needed;
 
-use super::{FileHeader, Packet, ReadPacketExt};
-use errors::{PcapError, Result};
+use super::{FileHeader, Packet};
+use errors::Result;
 
 pub struct Reader<'a, T: 'a> {
     r: T,
@@ -48,35 +47,58 @@ where
     type IntoIter = GetPackets<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        GetPackets {
-            file_header: None,
-            remaining: self.r.get_ref().as_ref(),
-        }
+        GetPackets::new(self.r.get_ref())
     }
 }
 
-pub struct GetPackets<'a> {
-    file_header: Option<FileHeader>,
-    remaining: &'a [u8],
-}
+pub type GetPackets<'a> = get::Packets<'a>;
 
-impl<'a> Iterator for GetPackets<'a> {
-    type Item = Packet<'a>;
+mod get {
+    use super::*;
+    use pcap::ReadPacketExt;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.file_header.is_none() {
-            if let Ok((remaining, file_header)) = FileHeader::parse(self.remaining) {
-                self.file_header = Some(file_header);
-                self.remaining = remaining;
+    pub struct Packets<'a> {
+        state: State<'a>,
+    }
+
+    impl<'a> Packets<'a> {
+        pub fn new<T: AsRef<[u8]>>(buf: &'a T) -> Packets<'a> {
+            Packets {
+                state: State::Init(buf.as_ref()),
             }
         }
+    }
 
-        if let Some(ref file_header) = self.file_header {
-            self.remaining
-                .read_packet(file_header.magic().endianness())
-                .ok()
-        } else {
-            None
+    enum State<'a> {
+        Init(&'a [u8]),
+        Parsed(FileHeader, &'a [u8]),
+        Finished,
+    }
+
+    impl<'a> Iterator for Packets<'a> {
+        type Item = Packet<'a>;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            loop {
+                self.state = match self.state {
+                    State::Init(remaining) => {
+                        if let Ok((remaining, file_header)) = FileHeader::parse(remaining) {
+                            State::Parsed(file_header, remaining)
+                        } else {
+                            State::Finished
+                        }
+                    }
+                    State::Parsed(ref file_header, mut remaining) => {
+                        if let Ok(packet) = remaining.read_packet(file_header.magic().endianness())
+                        {
+                            return Some(packet);
+                        } else {
+                            State::Finished
+                        }
+                    }
+                    State::Finished => return None,
+                };
+            }
         }
     }
 }
@@ -89,53 +111,74 @@ where
     type IntoIter = ReadPackets<'a, T>;
 
     fn into_iter(self) -> Self::IntoIter {
-        ReadPackets {
-            r: self.r,
-            file_header: None,
-            phantom: PhantomData,
-        }
+        ReadPackets::new(self.r)
     }
 }
 
-pub struct ReadPackets<'a, T>
-where
-    T: 'a + Read,
-{
-    r: BufReader<T>,
-    file_header: Option<FileHeader>,
-    phantom: PhantomData<&'a T>,
-}
+pub type ReadPackets<'a, T> = read::Packets<'a, T>;
 
-impl<'a, T> ReadPackets<'a, T>
-where
-    T: 'a + Read,
-{
-    fn read_packet(&mut self) -> Result<Packet<'a>> {
-        if self.file_header.is_none() {
-            let mut buf = vec![0; FileHeader::size()];
+mod read {
+    use std::cell::Cell;
 
-            self.r.read_exact(&mut buf)?;
-            let (_, file_header) = FileHeader::parse(&buf)?;
+    use super::*;
+    use pcap::ReadPacketExt;
 
-            self.file_header = Some(file_header);
-        }
-
-        let file_header = self.file_header
-            .as_ref()
-            .ok_or_else(|| PcapError::Incomplete(Needed::Unknown))?;
-
-        self.r.read_packet(file_header.magic().endianness())
+    pub struct Packets<'a, T: 'a> {
+        state: Cell<State<T>>,
+        phantom: PhantomData<&'a T>,
     }
-}
 
-impl<'a, T> Iterator for ReadPackets<'a, T>
-where
-    T: 'a + Read,
-{
-    type Item = Packet<'a>;
+    impl<'a, T: 'a> Packets<'a, T> {
+        pub fn new(reader: BufReader<T>) -> Self {
+            Packets {
+                state: Cell::new(State::Init(reader)),
+                phantom: PhantomData,
+            }
+        }
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        self.read_packet().ok()
+    enum State<T> {
+        Init(BufReader<T>),
+        Parsed(BufReader<T>, FileHeader),
+        Finished,
+    }
+
+    impl<T> Default for State<T> {
+        fn default() -> Self {
+            State::Finished
+        }
+    }
+
+    impl<'a, T> Iterator for Packets<'a, T>
+    where
+        T: 'a + Read,
+    {
+        type Item = Packet<'a>;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            loop {
+                match self.state.take() {
+                    State::Init(mut reader) => {
+                        let mut buf = vec![0; FileHeader::size()];
+
+                        self.state = Cell::new(
+                            reader
+                                .read_exact(&mut buf)
+                                .map_err(|err| err.into())
+                                .and_then(|_| FileHeader::parse(&buf))
+                                .map(|(_, file_header)| State::Parsed(reader, file_header))
+                                .unwrap_or(State::Finished),
+                        );
+                    }
+                    State::Parsed(mut reader, file_header) => {
+                        return reader.read_packet(file_header.magic().endianness()).ok()
+                    }
+                    State::Finished => {
+                        return None;
+                    }
+                }
+            }
+        }
     }
 }
 
