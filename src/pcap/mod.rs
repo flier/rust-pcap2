@@ -11,6 +11,7 @@ pub use self::reader::{mmap, open, parse, read, ParsePackets, ReadPackets, Reade
 pub use self::writer::{create, Builder, Writer};
 
 /// The `Packet` struct contains information about a single captured packet.
+#[derive(Clone, Debug)]
 pub struct Packet<'a> {
     /// The time when the packet was captured.
     pub timestamp: SystemTime,

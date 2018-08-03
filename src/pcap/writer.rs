@@ -100,14 +100,19 @@ pub struct Writer<W> {
     file_header: FileHeader,
 }
 
-impl<W> Writer<W> {
+impl<W> Writer<W>
+where
+    W: Default + Write,
+{
     /// Create a new `Writer` that writes the packet capture data from an iterator to the specified `Write`.
-    pub fn from_iter<'a, I: IntoIterator<Item = Packet<'a>>>(iter: I) -> Result<Writer<Vec<u8>>> {
-        Builder::new(vec![])
+    pub fn from_packets<'a, I: IntoIterator<Item = Packet<'a>>>(iter: I) -> Result<Self> {
+        Builder::new(W::default())
             .build()
             .and_then(|mut writer| writer.write_packets(iter).map(|_| writer))
     }
+}
 
+impl<W> Writer<W> {
     /// Consumes this `Writer`, returning the underlying value.
     pub fn into_inner(self) -> W {
         self.w
@@ -177,7 +182,7 @@ where
 #[cfg(test)]
 mod test {
     use std::borrow::Cow;
-    use std::iter::once;
+    use std::iter::{once, repeat};
     use std::time::Duration;
 
     use super::*;
@@ -202,5 +207,23 @@ mod test {
             assert_eq!(FileHeader::size() + wrote, buf.len());
             assert_eq!(writer.as_slice(), *buf);
         }
+    }
+
+    #[test]
+    pub fn test_from_packets() {
+        let packet = Packet {
+            timestamp: UNIX_EPOCH + Duration::new(0x56506e1a, 0x182b0ad0),
+            actual_length: 60,
+            payload: Cow::from(&[0x44u8, 0x41, 0x54, 0x41][..]),
+        };
+        let payload_len = packet.payload.len();
+        let data = Writer::<Vec<u8>>::from_packets(repeat(packet).take(5))
+            .unwrap()
+            .into_inner();
+
+        assert_eq!(
+            data.len(),
+            FileHeader::size() + (PacketHeader::size() + payload_len) * 5
+        );
     }
 }
