@@ -11,13 +11,13 @@ pub use self::header::{
 pub use self::packet::{
     Header as PacketHeader, Packet as RawPacket, ReadPacketExt, WritePacket, WritePacketExt,
 };
-pub use self::read::{mmap, open, parse, read, ParsePackets, ReadPackets, Reader};
-pub use self::write::{create, Writer};
+pub use self::reader::{mmap, open, parse, read, ParsePackets, ReadPackets, Reader};
+pub use self::writer::{create, Writer};
 
 mod header;
 mod packet;
-mod read;
-mod write;
+mod reader;
+mod writer;
 
 pub trait AsEndianness {
     fn endianness() -> Endianness;
