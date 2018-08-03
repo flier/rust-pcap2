@@ -138,3 +138,8 @@ where
         self.read_packet().ok()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+}

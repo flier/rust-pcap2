@@ -10,6 +10,12 @@ extern crate byteorder;
 extern crate nom;
 extern crate memmap;
 
+#[cfg(test)]
+#[macro_use]
+extern crate lazy_static;
+#[cfg(test)]
+extern crate hexplay;
+
 mod errors;
 pub mod pcap;
 pub mod pcapng;

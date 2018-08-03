@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::mem;
 
-use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
+use byteorder::{ByteOrder, NativeEndian, WriteBytesExt};
 use nom::*;
 use num_traits::FromPrimitive;
 
@@ -39,10 +39,10 @@ pub const DEFAULT_VERSION_MINOR: u16 = 4;
 ///
 /// Look at [tcpdump.org](http://www.tcpdump.org/linktypes.html) for the canonical list with
 /// descriptions.
-#[derive(Copy, Clone, Debug, FromPrimitive)]
+#[derive(Copy, Clone, Debug, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(u32)]
 #[allow(non_camel_case_types)]
-pub enum Linktype {
+pub enum LinkType {
     NULL = 0,
     /// Ethernet packets
     ETHERNET = 1,
@@ -153,9 +153,9 @@ pub enum Linktype {
     USB_DARWIN = 266,
 }
 
-impl Default for Linktype {
+impl Default for LinkType {
     fn default() -> Self {
-        Linktype::NULL
+        LinkType::NULL
     }
 }
 
@@ -179,14 +179,7 @@ pub struct Header {
 
 impl Header {
     pub fn parse(buf: &[u8]) -> Result<(&[u8], Self)> {
-        if buf.len() < mem::size_of::<Self>() {
-            return Err(PcapError::Incomplete(Needed::Size(mem::size_of::<Self>())).into());
-        }
-
-        let magic_number = LittleEndian::read_u32(buf);
-        let magic = Magic::from_u32(magic_number).ok_or(PcapError::UnknownMagic(magic_number))?;
-
-        parse_header(buf, magic.endianness()).map_err(|err| PcapError::from(err).into())
+        parse_header(buf).map_err(|err| PcapError::from(err).into())
     }
 
     pub fn size() -> usize {
@@ -201,14 +194,21 @@ impl Header {
         self.magic_number == Magic::NanoSecondResolution as u32
     }
 
-    pub fn link_type(&self) -> Linktype {
-        Linktype::from_u32(self.network).unwrap_or_default()
+    pub fn link_type(&self) -> LinkType {
+        LinkType::from_u32(self.network).unwrap_or_default()
     }
 }
 
-named_args!(parse_header(endianness: Endianness)<Header>,
+#[cfg_attr(rustfmt, rustfmt_skip)]
+named!(parse_header<Header>,
     do_parse!(
-        magic_number: u32!(endianness) >>
+        magic_number: call!(le_u32) >>
+        endianness: switch!(expr_opt!(Magic::from_u32(magic_number)),
+            Magic::Normal                       => value!(Endianness::Little) |
+            Magic::NanoSecondResolution         => value!(Endianness::Little) |
+            Magic::ByteSwap                     => value!(Endianness::Big) |
+            Magic::NanoSecondResolutionByteSwap => value!(Endianness::Big)
+        ) >>
         version_major: u16!(endianness) >>
         version_minor: u16!(endianness) >>
         thiszone: i32!(endianness) >>
@@ -216,7 +216,7 @@ named_args!(parse_header(endianness: Endianness)<Header>,
         snaplen: u32!(endianness) >>
         network: u32!(endianness) >>
         (
-            Header{
+            Header {
                 magic_number,
                 version_major,
                 version_minor,
@@ -230,28 +230,75 @@ named_args!(parse_header(endianness: Endianness)<Header>,
 );
 
 pub trait WriteHeaderExt {
-    fn write_header<T: ByteOrder>(&mut self, header: &Header) -> Result<()>;
+    fn write_pcap_header<T: ByteOrder>(&mut self, header: &Header) -> Result<usize>;
 }
 
 impl<W: Write + ?Sized> WriteHeaderExt for W {
-    fn write_header<T: ByteOrder>(&mut self, header: &Header) -> Result<()> {
-        self.write_u32::<T>(header.magic_number)?;
+    fn write_pcap_header<T: ByteOrder>(&mut self, header: &Header) -> Result<usize> {
+        self.write_u32::<NativeEndian>(header.magic_number)?;
         self.write_u16::<T>(header.version_major)?;
         self.write_u16::<T>(header.version_minor)?;
         self.write_i32::<T>(header.thiszone)?;
         self.write_u32::<T>(header.sigfigs)?;
         self.write_u32::<T>(header.snaplen)?;
         self.write_u32::<T>(header.network)?;
-        Ok(())
+
+        Ok(Header::size())
     }
 }
 
 #[cfg(test)]
 mod test {
+    use byteorder::{BigEndian, LittleEndian};
+    use hexplay::HexViewBuilder;
+
+    use pcap::tests::PACKETS;
+
     use super::*;
 
     #[test]
     pub fn test_layout() {
         assert_eq!(Header::size(), 24)
+    }
+
+    #[test]
+    pub fn test_parse_header() {
+        for (buf, magic) in PACKETS.iter() {
+            let (remaining, header) = Header::parse(buf).unwrap();
+
+            assert_eq!(buf.len() - remaining.len(), Header::size());
+
+            assert_eq!(header.magic(), *magic);
+            assert_eq!(header.version_major, DEFAULT_VERSION_MAJOR);
+            assert_eq!(header.version_minor, DEFAULT_VERSION_MINOR);
+            assert_eq!(header.thiszone, 0);
+            assert_eq!(header.sigfigs, 0);
+            assert_eq!(header.snaplen, 0xFFFF);
+            assert_eq!(header.network, 101);
+            assert_eq!(header.link_type(), LinkType::RAW);
+        }
+    }
+
+    #[test]
+    pub fn test_write_header() {
+        for (buf, magic) in PACKETS.iter() {
+            let header = Header {
+                magic_number: *magic as u32,
+                version_major: DEFAULT_VERSION_MAJOR,
+                version_minor: DEFAULT_VERSION_MINOR,
+                thiszone: 0,
+                sigfigs: 0,
+                snaplen: 0xFFFF,
+                network: LinkType::RAW as u32,
+            };
+
+            let mut payload = vec![];
+            let len = match magic.endianness() {
+                Endianness::Little => payload.write_pcap_header::<LittleEndian>(&header),
+                Endianness::Big => payload.write_pcap_header::<BigEndian>(&header),
+            }.unwrap();
+
+            assert_eq!(payload.as_slice(), &buf[..len]);
+        }
     }
 }

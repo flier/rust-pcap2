@@ -152,7 +152,7 @@ impl<W: Write + ?Sized> WritePacketExt for W {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]

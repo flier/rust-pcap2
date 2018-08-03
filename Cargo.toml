@@ -11,3 +11,7 @@ num-derive = "0.2"
 byteorder = "1.2"
 nom = "4.0"
 memmap = "0.6"
+
+[dev-dependencies]
+lazy_static = "1.0"
+hexplay = "0.2"
