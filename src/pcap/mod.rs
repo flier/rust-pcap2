@@ -10,7 +10,7 @@ pub use self::header::{
 pub use self::packet::{
     AsEndianness, Header as PacketHeader, Packet, ReadPacketExt, WritePacketExt,
 };
-pub use self::read::{mmap, open, parse, read, GetPackets, ReadPackets, Reader};
+pub use self::read::{mmap, open, parse, read, ParsePackets, ReadPackets, Reader};
 pub use self::write::{create, Writer};
 
 #[cfg(test)]

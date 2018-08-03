@@ -47,17 +47,17 @@ impl<'a, T> IntoIterator for &'a Reader<'a, Cursor<T>>
 where
     T: AsRef<[u8]>,
 {
-    type Item = <GetPackets<'a> as Iterator>::Item;
-    type IntoIter = GetPackets<'a>;
+    type Item = <ParsePackets<'a> as Iterator>::Item;
+    type IntoIter = ParsePackets<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        GetPackets::new(self.r.get_ref())
+        ParsePackets::new(self.r.get_ref())
     }
 }
 
-pub type GetPackets<'a> = get::Packets<'a>;
+pub type ParsePackets<'a> = parse::Packets<'a>;
 
-mod get {
+mod parse {
     use nom::Endianness;
 
     use super::*;
