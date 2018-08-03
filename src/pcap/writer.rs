@@ -9,21 +9,39 @@ use byteorder::{BigEndian, LittleEndian, NativeEndian};
 use nom::Endianness;
 
 use errors::Result;
-use pcap::{AsEndianness, FileHeader, LinkType, Packet, PacketHeader, WriteHeaderExt, WritePacket};
+use pcap::header::{AsEndianness, Header as FileHeader, LinkType, WriteHeaderExt};
+use pcap::packet::{Header as PacketHeader, WritePacket};
+use pcap::Packet;
 
+/// Opens a file as a stream in write-only mode.
 pub fn create<P: AsRef<Path>, W>(path: P) -> Result<Builder<BufWriter<File>>> {
     let f = File::create(path)?;
     let w = BufWriter::new(f);
 
-    Ok(Builder::new::<NativeEndian>(w))
+    Ok(Builder::new(w))
 }
 
+/// The `Builder` struct contains the options for creating a new packet capture.
 pub struct Builder<W> {
     w: Writer<W>,
 }
 
 impl<W> Builder<W> {
-    pub fn new<T: AsEndianness>(w: W) -> Self {
+    /// Create a new `Builder` which can be used configure the options of a new `Writer`.
+    pub fn new(w: W) -> Self {
+        Self::with_byteorder::<NativeEndian>(w)
+    }
+
+    /// Create a new `Builder` with special `Endianness` which can be used configure the options of a new `Writer`.
+    pub fn with_endianness(w: W, endianness: Endianness) -> Self {
+        match endianness {
+            Endianness::Little => Self::with_byteorder::<LittleEndian>(w),
+            Endianness::Big => Self::with_byteorder::<BigEndian>(w),
+        }
+    }
+
+    /// Create a new `Builder` with special `ByteOrder` which can be used configure the options of a new `Writer`.
+    pub fn with_byteorder<T: AsEndianness>(w: W) -> Self {
         Builder {
             w: Writer {
                 w,
@@ -32,18 +50,23 @@ impl<W> Builder<W> {
         }
     }
 
+    /// The correction time in seconds between GMT (UTC) and the local timezone of the following packet header timestamps.
     #[must_use]
     pub fn utc_offset_seconds(mut self, utc_offset_secs: i32) -> Self {
         self.w.file_header.thiszone = utc_offset_secs;
         self
     }
 
+    /// The maximum size of a packet that can be written to the file.
     #[must_use]
     pub fn snapshot_length(mut self, snaplen: u32) -> Self {
         self.w.file_header.snaplen = snaplen;
         self
     }
 
+    /// The type of packets that will be written to the file.
+    ///
+    /// See `Linktype` for known values.
     #[must_use]
     pub fn link_type(mut self, link_type: LinkType) -> Self {
         self.w.file_header.network = link_type as u32;
@@ -55,6 +78,7 @@ impl<W> Builder<W>
 where
     W: Write,
 {
+    /// Build a new `Writer` that writes the packet capture data to the specified `Write`.
     #[must_use]
     pub fn build(mut self) -> Result<Writer<W>> {
         match self.w.file_header.magic().endianness() {
@@ -70,12 +94,21 @@ where
     }
 }
 
+/// The `Writer` struct allows writing packets as a packet capture.
 pub struct Writer<W> {
     w: W,
     file_header: FileHeader,
 }
 
 impl<W> Writer<W> {
+    /// Create a new `Writer` that writes the packet capture data from an iterator to the specified `Write`.
+    pub fn from_iter<'a, I: IntoIterator<Item = Packet<'a>>>(iter: I) -> Result<Writer<Vec<u8>>> {
+        Builder::new(vec![])
+            .build()
+            .and_then(|mut writer| writer.write_packets(iter).map(|_| writer))
+    }
+
+    /// Consumes this `Writer`, returning the underlying value.
     pub fn into_inner(self) -> W {
         self.w
     }
@@ -99,6 +132,12 @@ impl<W> Writer<W>
 where
     W: Write,
 {
+    /// Create a new `Writer` that writes the packet capture data to the specified `Write`.
+    pub fn new(w: W) -> Result<Self> {
+        Builder::new(w).build()
+    }
+
+    /// Write a packet to the packet capture stream.
     pub fn write_packet<'a>(&mut self, packet: &Packet<'a>) -> Result<usize> {
         let d = packet.timestamp.duration_since(UNIX_EPOCH)?;
 
@@ -120,6 +159,7 @@ where
         }
     }
 
+    /// Write a packet to the packets from an iterator capture stream.
     pub fn write_packets<'a, I: IntoIterator<Item = Packet<'a>>>(
         &mut self,
         iter: I,
@@ -133,15 +173,12 @@ where
         Ok(wrote)
     }
 }
+
 #[cfg(test)]
 mod test {
     use std::borrow::Cow;
     use std::iter::once;
     use std::time::Duration;
-
-    use nom::Endianness;
-
-    use byteorder::{BigEndian, LittleEndian};
 
     use super::*;
     use pcap::tests::NANO_PACKETS;
@@ -156,11 +193,10 @@ mod test {
             };
 
             let mut data = vec![];
-            let mut builder = match magic.endianness() {
-                Endianness::Little => Builder::new::<LittleEndian>(data),
-                Endianness::Big => Builder::new::<BigEndian>(data),
-            };
-            let mut writer = builder.link_type(LinkType::RAW).build().unwrap();
+            let mut writer = Builder::with_endianness(data, magic.endianness())
+                .link_type(LinkType::RAW)
+                .build()
+                .unwrap();
             let wrote = writer.write_packets(once(packet)).unwrap();
 
             assert_eq!(FileHeader::size() + wrote, buf.len());

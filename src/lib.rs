@@ -15,7 +15,13 @@ extern crate lazy_static;
 extern crate hexplay;
 
 mod errors;
+/// Supports the legacy `pcap` format.
+///
+/// See [Libpcap File Format](https://wiki.wireshark.org/Development/LibpcapFileFormat) for more details.
 pub mod pcap;
+/// Support the newer `pcapng` file format.
+///
+/// See [PCAP Next Generation Dump File Format](https://wiki.wireshark.org/Development/PcapNg) for more details.
 pub mod pcapng;
 
 pub use errors::PcapError;

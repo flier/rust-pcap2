@@ -1,12 +1,27 @@
 use std::io::Write;
 use std::mem;
 
-use byteorder::{ByteOrder, NativeEndian, WriteBytesExt};
+use byteorder::{BigEndian, ByteOrder, LittleEndian, NativeEndian, WriteBytesExt};
 use nom::*;
 use num_traits::FromPrimitive;
 
 use errors::{PcapError, Result};
-use pcap::AsEndianness;
+
+pub trait AsEndianness {
+    fn endianness() -> Endianness;
+}
+
+impl AsEndianness for LittleEndian {
+    fn endianness() -> Endianness {
+        Endianness::Little
+    }
+}
+
+impl AsEndianness for BigEndian {
+    fn endianness() -> Endianness {
+        Endianness::Big
+    }
+}
 
 #[repr(u32)]
 #[derive(Copy, Clone, Debug, PartialEq, FromPrimitive)]

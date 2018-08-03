@@ -1,43 +1,22 @@
 use std::borrow::Cow;
 use std::time::SystemTime;
 
-use byteorder::{BigEndian, LittleEndian};
-use nom::Endianness;
-
-pub use self::header::{
-    Header as FileHeader, LinkType, Magic, WriteHeaderExt, DEFAULT_VERSION_MAJOR,
-    DEFAULT_VERSION_MINOR,
-};
-pub use self::packet::{
-    Header as PacketHeader, Packet as RawPacket, ReadPacketExt, WritePacket, WritePacketExt,
-};
-pub use self::reader::{mmap, open, parse, read, ParsePackets, ReadPackets, Reader};
-pub use self::writer::{create, Writer};
-
 mod header;
 mod packet;
 mod reader;
 mod writer;
 
-pub trait AsEndianness {
-    fn endianness() -> Endianness;
-}
+pub use self::header::LinkType;
+pub use self::reader::{mmap, open, parse, read, ParsePackets, ReadPackets, Reader};
+pub use self::writer::{create, Builder, Writer};
 
-impl AsEndianness for LittleEndian {
-    fn endianness() -> Endianness {
-        Endianness::Little
-    }
-}
-
-impl AsEndianness for BigEndian {
-    fn endianness() -> Endianness {
-        Endianness::Big
-    }
-}
-
+/// The `Packet` struct contains information about a single captured packet.
 pub struct Packet<'a> {
+    /// The time when the packet was captured.
     pub timestamp: SystemTime,
+    /// The size of the packet as it was on the wire.
     pub actual_length: usize,
+    /// The contents of the packet (possibly truncated to `actual_length` bytes during capture).
     pub payload: Cow<'a, [u8]>,
 }
 
@@ -57,7 +36,7 @@ impl<'a> Packet<'a> {
 
 #[cfg(test)]
 pub mod tests {
-    use super::*;
+    use pcap::header::Magic;
 
     lazy_static! {
         pub static ref PACKET_BE_US: Vec<u8> = vec![

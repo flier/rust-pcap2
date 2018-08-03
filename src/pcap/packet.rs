@@ -176,8 +176,8 @@ mod tests {
 
     use byteorder::{BigEndian, LittleEndian};
 
+    use pcap::header::Header as FileHeader;
     use pcap::tests::PACKETS;
-    use pcap::FileHeader;
 
     #[test]
     pub fn test_layout() {

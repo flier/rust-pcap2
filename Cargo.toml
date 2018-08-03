@@ -2,6 +2,24 @@
 name = "pcap2"
 version = "0.1.0"
 authors = ["Flier Lu <flier.lu@gmail.com>"]
+repository = "https://github.com/flier/rust-pcap2"
+documentation = "https://docs.rs/pcap2/"
+license = "MIT/Apache-2.0"
+description="A Rust library for reading and writing PCAP/PCAPNG files."
+exclude = [
+    ".gitignore",
+    ".travis.yml",
+]
+readme = "README.md"
+categories = [
+    "network-programming",
+]
+keywords = [
+    "packet",
+    "pcap",
+    "pcapng",
+    "sniffing",
+]
 
 [dependencies]
 failure = "0.1"

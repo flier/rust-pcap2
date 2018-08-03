@@ -8,18 +8,23 @@ use std::time::{Duration, UNIX_EPOCH};
 use memmap::Mmap;
 
 use errors::Result;
-use pcap::{FileHeader, Packet, RawPacket};
+use pcap::header::Header as FileHeader;
+use pcap::packet::Packet as RawPacket;
+use pcap::Packet;
 
+/// Open a file as a stream in read-only mode.
 pub fn open<'a, P: AsRef<Path>>(path: P) -> Result<Reader<'a, BufReader<File>>> {
     let f = File::open(path)?;
 
     read(f)
 }
 
+/// Read a stream implements `Read` trait in read-only mode.
 pub fn read<'a, R: Read>(read: R) -> Result<Reader<'a, BufReader<R>>> {
     Ok(Reader::new(BufReader::new(read)))
 }
 
+/// Open a file as immutable memory mapped buffer in read-only mode.
 pub fn mmap<'a, P: AsRef<Path>>(path: P) -> Result<Reader<'a, Cursor<Mmap>>> {
     let f = File::open(path)?;
     let mmap = unsafe { Mmap::map(&f)? };
@@ -27,16 +32,19 @@ pub fn mmap<'a, P: AsRef<Path>>(path: P) -> Result<Reader<'a, Cursor<Mmap>>> {
     parse(mmap)
 }
 
+/// Parse a buffer implements `AsRef<[u8]>` trait in read-only mode.
 pub fn parse<'a, T: AsRef<[u8]>>(buf: T) -> Result<Reader<'a, Cursor<T>>> {
     Ok(Reader::new(Cursor::new(buf)))
 }
 
+/// The `Reader` struct allows reading packets from a packet capture.
 pub struct Reader<'a, R: 'a> {
     r: R,
     phantom: PhantomData<&'a R>,
 }
 
 impl<'a, R: 'a> Reader<'a, R> {
+    /// Create a new `Reader` that reads the packet capture data from the specified `Reader`.
     pub fn new(r: R) -> Self {
         Reader {
             r,
@@ -96,13 +104,14 @@ where
     }
 }
 
+/// Parse `Packet<'a>` from a read-only buffer.
 pub type ParsePackets<'a> = parse::Packets<'a>;
 
 mod parse {
     use nom::Endianness;
 
     use super::*;
-    use pcap::ReadPacketExt;
+    use pcap::packet::ReadPacketExt;
 
     pub struct Packets<'a> {
         state: State<'a>,
@@ -185,6 +194,7 @@ where
     }
 }
 
+/// Read `Packet<'a>` from a read-only stream.
 pub type ReadPackets<'a, R> = read::Packets<'a, R>;
 
 mod read {
@@ -193,7 +203,7 @@ mod read {
     use nom::Endianness;
 
     use super::*;
-    use pcap::ReadPacketExt;
+    use pcap::packet::ReadPacketExt;
 
     pub struct Packets<'a, R: 'a> {
         state: Cell<State<R>>,
