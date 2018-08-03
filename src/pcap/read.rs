@@ -22,7 +22,11 @@ impl<'a, T: 'a> Reader<'a, T> {
     }
 }
 
-pub fn open<'a, P: AsRef<Path>, T>(path: P) -> Result<Reader<'a, BufReader<File>>> {
+pub fn read<'a, R: Read>(read: R) -> Result<Reader<'a, BufReader<R>>> {
+    Ok(Reader::new(BufReader::new(read)))
+}
+
+pub fn open<'a, P: AsRef<Path>>(path: P) -> Result<Reader<'a, BufReader<File>>> {
     let f = File::open(path)?;
 
     Ok(Reader::new(BufReader::new(f)))
@@ -82,23 +86,26 @@ mod get {
 
         fn next(&mut self) -> Option<Self::Item> {
             loop {
-                self.state = match self.state {
+                match self.state {
                     State::Init(remaining) => {
-                        if let Ok((remaining, file_header)) = FileHeader::parse(remaining) {
-                            State::Parsed(remaining, file_header.magic().endianness())
-                        } else {
-                            State::Finished
-                        }
+                        self.state =
+                            if let Ok((remaining, file_header)) = FileHeader::parse(remaining) {
+                                State::Parsed(remaining, file_header.magic().endianness())
+                            } else {
+                                State::Finished
+                            }
                     }
                     State::Parsed(mut remaining, endianness) => {
                         if let Ok(packet) = remaining.read_packet(endianness) {
+                            self.state = State::Parsed(remaining, endianness);
+
                             return Some(packet);
-                        } else {
-                            State::Finished
                         }
+
+                        self.state = State::Finished;
                     }
                     State::Finished => return None,
-                };
+                }
             }
         }
     }
@@ -176,7 +183,11 @@ mod read {
                         );
                     }
                     State::Parsed(mut reader, endianness) => {
-                        return reader.read_packet(endianness).ok()
+                        if let Ok(packet) = reader.read_packet(endianness) {
+                            self.state = Cell::new(State::Parsed(reader, endianness));
+
+                            return Some(packet);
+                        }
                     }
                     State::Finished => {
                         return None;
@@ -189,5 +200,43 @@ mod read {
 
 #[cfg(test)]
 mod test {
+    use std::borrow::Cow;
+
     use super::*;
+    use pcap::tests::PACKETS;
+
+    #[test]
+    pub fn test_read_packets() {
+        for (buf, _) in PACKETS.iter() {
+            let mut packets = read(*buf).unwrap().into_iter();
+
+            let packet = packets.next().unwrap();
+
+            assert_eq!(packet.header.ts_sec, 0x56506e1a);
+            assert_eq!(packet.header.ts_usec, 0x182b0ad0);
+            assert_eq!(packet.header.incl_len, 4);
+            assert_eq!(packet.header.orig_len, 60);
+            assert_eq!(packet.payload, Cow::from(&[0x44u8, 0x41, 0x54, 0x41][..]));
+
+            assert!(packets.next().is_none());
+        }
+    }
+
+    #[test]
+    pub fn test_parse_packets() {
+        for (buf, _) in PACKETS.iter() {
+            let reader = parse(buf).unwrap();
+            let mut packets = reader.into_iter();
+
+            let packet = packets.next().unwrap();
+
+            assert_eq!(packet.header.ts_sec, 0x56506e1a);
+            assert_eq!(packet.header.ts_usec, 0x182b0ad0);
+            assert_eq!(packet.header.incl_len, 4);
+            assert_eq!(packet.header.orig_len, 60);
+            assert_eq!(packet.payload, Cow::from(&[0x44u8, 0x41, 0x54, 0x41][..]));
+
+            assert!(packets.next().is_none());
+        }
+    }
 }
