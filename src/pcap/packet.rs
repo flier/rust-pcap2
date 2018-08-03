@@ -126,7 +126,7 @@ impl<'a> ReadPacketExt<'a> for &'a [u8] {
 }
 
 pub trait WritePacketExt {
-    fn write_packet<T: ByteOrder, B: AsRef<[u8]>>(
+    fn write_pcap_packet<T: ByteOrder, B: AsRef<[u8]>>(
         &mut self,
         header: &Header,
         payload: B,
@@ -134,7 +134,7 @@ pub trait WritePacketExt {
 }
 
 impl<W: Write + ?Sized> WritePacketExt for W {
-    fn write_packet<T: ByteOrder, B: AsRef<[u8]>>(
+    fn write_pcap_packet<T: ByteOrder, B: AsRef<[u8]>>(
         &mut self,
         header: &Header,
         payload: B,
@@ -155,8 +155,55 @@ impl<W: Write + ?Sized> WritePacketExt for W {
 mod tests {
     use super::*;
 
+    use pcap::tests::PACKETS;
+    use pcap::FileHeader;
+
     #[test]
     pub fn test_layout() {
         assert_eq!(Header::size(), 16)
+    }
+
+    #[test]
+    pub fn test_parse_packet() {
+        for (buf, magic) in PACKETS.iter() {
+            let (remaining, packet) =
+                parse_packet(&buf[FileHeader::size()..], magic.endianness()).unwrap();
+
+            assert!(remaining.is_empty());
+            assert_eq!(packet.header.ts_sec, 0x56506e1a);
+            assert_eq!(packet.header.ts_usec, 0x182b0ad0);
+            assert_eq!(packet.header.incl_len, 4);
+            assert_eq!(packet.header.orig_len, 60);
+            assert_eq!(packet.payload, Cow::from(&[0x44u8, 0x41, 0x54, 0x41][..]));
+        }
+    }
+
+    #[test]
+    pub fn test_write_packet() {
+        for (buf, magic) in PACKETS.iter() {
+            let packet = Packet {
+                header: Header {
+                    ts_sec: 0x56506e1a,
+                    ts_usec: 0x182b0ad0,
+                    incl_len: 4,
+                    orig_len: 60,
+                },
+                payload: Cow::from(&[0x44u8, 0x41, 0x54, 0x41][..]),
+            };
+            let packet_len = packet.size();
+
+            let mut data = vec![];
+            let wrote = match magic.endianness() {
+                Endianness::Little => {
+                    data.write_pcap_packet::<LittleEndian, _>(&packet.header, packet.payload)
+                }
+                Endianness::Big => {
+                    data.write_pcap_packet::<BigEndian, _>(&packet.header, packet.payload)
+                }
+            }.unwrap();
+
+            assert_eq!(wrote, packet_len);
+            assert_eq!(data.as_slice(), &buf[FileHeader::size()..]);
+        }
     }
 }

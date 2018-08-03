@@ -250,7 +250,6 @@ impl<W: Write + ?Sized> WriteHeaderExt for W {
 #[cfg(test)]
 mod test {
     use byteorder::{BigEndian, LittleEndian};
-    use hexplay::HexViewBuilder;
 
     use pcap::tests::PACKETS;
 
@@ -292,13 +291,13 @@ mod test {
                 network: LinkType::RAW as u32,
             };
 
-            let mut payload = vec![];
+            let mut data = vec![];
             let len = match magic.endianness() {
-                Endianness::Little => payload.write_pcap_header::<LittleEndian>(&header),
-                Endianness::Big => payload.write_pcap_header::<BigEndian>(&header),
+                Endianness::Little => data.write_pcap_header::<LittleEndian>(&header),
+                Endianness::Big => data.write_pcap_header::<BigEndian>(&header),
             }.unwrap();
 
-            assert_eq!(payload.as_slice(), &buf[..len]);
+            assert_eq!(data.as_slice(), &buf[..len]);
         }
     }
 }
