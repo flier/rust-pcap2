@@ -177,6 +177,20 @@ pub struct Header {
     pub network: u32,
 }
 
+impl Default for Header {
+    fn default() -> Self {
+        Header {
+            magic_number: Magic::NanoSecondResolution as u32,
+            version_major: DEFAULT_VERSION_MAJOR,
+            version_minor: DEFAULT_VERSION_MINOR,
+            thiszone: 0,
+            sigfigs: 0,
+            snaplen: 0xFFFF,
+            network: LinkType::NULL as u32,
+        }
+    }
+}
+
 impl Header {
     pub fn parse(buf: &[u8]) -> Result<(&[u8], Self)> {
         parse_header(buf).map_err(|err| PcapError::from(err).into())
@@ -230,11 +244,11 @@ named!(parse_header<Header>,
 );
 
 pub trait WriteHeaderExt {
-    fn write_pcap_header<T: ByteOrder>(&mut self, header: &Header) -> Result<usize>;
+    fn write_header<T: ByteOrder>(&mut self, header: &Header) -> Result<usize>;
 }
 
 impl<W: Write + ?Sized> WriteHeaderExt for W {
-    fn write_pcap_header<T: ByteOrder>(&mut self, header: &Header) -> Result<usize> {
+    fn write_header<T: ByteOrder>(&mut self, header: &Header) -> Result<usize> {
         self.write_u32::<NativeEndian>(header.magic_number)?;
         self.write_u16::<T>(header.version_major)?;
         self.write_u16::<T>(header.version_minor)?;
@@ -293,8 +307,8 @@ mod test {
 
             let mut data = vec![];
             let len = match magic.endianness() {
-                Endianness::Little => data.write_pcap_header::<LittleEndian>(&header),
-                Endianness::Big => data.write_pcap_header::<BigEndian>(&header),
+                Endianness::Little => data.write_header::<LittleEndian>(&header),
+                Endianness::Big => data.write_header::<BigEndian>(&header),
             }.unwrap();
 
             assert_eq!(data.as_slice(), &buf[..len]);

@@ -1,26 +1,13 @@
 use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
 use memmap::Mmap;
 
-use super::{FileHeader, Packet};
 use errors::Result;
-
-pub struct Reader<'a, T: 'a> {
-    r: T,
-    phantom: PhantomData<&'a T>,
-}
-
-impl<'a, T: 'a> Reader<'a, T> {
-    pub fn new(r: T) -> Self {
-        Reader {
-            r,
-            phantom: PhantomData,
-        }
-    }
-}
+use pcap::{FileHeader, Packet};
 
 pub fn read<'a, R: Read>(read: R) -> Result<Reader<'a, BufReader<R>>> {
     Ok(Reader::new(BufReader::new(read)))
@@ -41,6 +28,34 @@ pub fn mmap<'a, P: AsRef<Path>>(path: P) -> Result<Reader<'a, Cursor<Mmap>>> {
 
 pub fn parse<'a, T: AsRef<[u8]>>(buf: T) -> Result<Reader<'a, Cursor<T>>> {
     Ok(Reader::new(Cursor::new(buf)))
+}
+
+pub struct Reader<'a, R: 'a> {
+    r: R,
+    phantom: PhantomData<&'a R>,
+}
+
+impl<'a, R: 'a> Reader<'a, R> {
+    pub fn new(r: R) -> Self {
+        Reader {
+            r,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a, R> Deref for Reader<'a, R> {
+    type Target = R;
+
+    fn deref(&self) -> &Self::Target {
+        &self.r
+    }
+}
+
+impl<'a, R> DerefMut for Reader<'a, R> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.r
+    }
 }
 
 impl<'a, T> IntoIterator for &'a Reader<'a, Cursor<T>>
@@ -77,7 +92,7 @@ mod parse {
 
     enum State<'a> {
         Init(&'a [u8]),
-        Parsed(&'a [u8], Endianness),
+        Parsed(&'a [u8], Endianness, bool),
         Finished,
     }
 
@@ -90,14 +105,19 @@ mod parse {
                     State::Init(remaining) => {
                         self.state =
                             if let Ok((remaining, file_header)) = FileHeader::parse(remaining) {
-                                State::Parsed(remaining, file_header.magic().endianness())
+                                State::Parsed(
+                                    remaining,
+                                    file_header.magic().endianness(),
+                                    file_header.is_nanosecond_resolution(),
+                                )
                             } else {
                                 State::Finished
                             }
                     }
-                    State::Parsed(mut remaining, endianness) => {
+                    State::Parsed(mut remaining, endianness, is_nanosecond_resolution) => {
                         if let Ok(packet) = remaining.read_packet(endianness) {
-                            self.state = State::Parsed(remaining, endianness);
+                            self.state =
+                                State::Parsed(remaining, endianness, is_nanosecond_resolution);
 
                             return Some(packet);
                         }
@@ -111,19 +131,19 @@ mod parse {
     }
 }
 
-impl<'a, T> IntoIterator for Reader<'a, BufReader<T>>
+impl<'a, R> IntoIterator for Reader<'a, BufReader<R>>
 where
-    T: Read,
+    R: Read,
 {
-    type Item = <ReadPackets<'a, T> as Iterator>::Item;
-    type IntoIter = ReadPackets<'a, T>;
+    type Item = <ReadPackets<'a, R> as Iterator>::Item;
+    type IntoIter = ReadPackets<'a, R>;
 
     fn into_iter(self) -> Self::IntoIter {
         ReadPackets::new(self.r)
     }
 }
 
-pub type ReadPackets<'a, T> = read::Packets<'a, T>;
+pub type ReadPackets<'a, R> = read::Packets<'a, R>;
 
 mod read {
     use std::cell::Cell;
@@ -133,13 +153,13 @@ mod read {
     use super::*;
     use pcap::ReadPacketExt;
 
-    pub struct Packets<'a, T: 'a> {
-        state: Cell<State<T>>,
-        phantom: PhantomData<&'a T>,
+    pub struct Packets<'a, R: 'a> {
+        state: Cell<State<R>>,
+        phantom: PhantomData<&'a R>,
     }
 
-    impl<'a, T: 'a> Packets<'a, T> {
-        pub fn new(reader: BufReader<T>) -> Self {
+    impl<'a, R: 'a> Packets<'a, R> {
+        pub fn new(reader: BufReader<R>) -> Self {
             Packets {
                 state: Cell::new(State::Init(reader)),
                 phantom: PhantomData,
@@ -147,21 +167,21 @@ mod read {
         }
     }
 
-    enum State<T> {
-        Init(BufReader<T>),
-        Parsed(BufReader<T>, Endianness),
+    enum State<R> {
+        Init(BufReader<R>),
+        Parsed(BufReader<R>, Endianness),
         Finished,
     }
 
-    impl<T> Default for State<T> {
+    impl<R> Default for State<R> {
         fn default() -> Self {
             State::Finished
         }
     }
 
-    impl<'a, T> Iterator for Packets<'a, T>
+    impl<'a, R> Iterator for Packets<'a, R>
     where
-        T: 'a + Read,
+        R: 'a + Read,
     {
         type Item = Packet<'a>;
 

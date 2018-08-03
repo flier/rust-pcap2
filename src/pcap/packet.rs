@@ -126,15 +126,32 @@ impl<'a> ReadPacketExt<'a> for &'a [u8] {
 }
 
 pub trait WritePacketExt {
-    fn write_pcap_packet<T: ByteOrder, B: AsRef<[u8]>>(
+    fn write_packet_data<T: ByteOrder, B: AsRef<[u8]>>(
         &mut self,
         header: &Header,
         payload: B,
     ) -> Result<usize>;
+
+    fn write_packet<'a, T: ByteOrder>(&mut self, packet: &Packet<'a>) -> Result<usize> {
+        self.write_packet_data::<T, _>(&packet.header, &packet.payload)
+    }
+
+    fn write_packets<'a, T: ByteOrder, I: IntoIterator<Item = Packet<'a>>>(
+        &mut self,
+        iter: I,
+    ) -> Result<usize> {
+        let mut wrote = 0;
+
+        for packet in iter {
+            wrote += self.write_packet::<T>(&packet)?;
+        }
+
+        Ok(wrote)
+    }
 }
 
 impl<W: Write + ?Sized> WritePacketExt for W {
-    fn write_pcap_packet<T: ByteOrder, B: AsRef<[u8]>>(
+    fn write_packet_data<T: ByteOrder, B: AsRef<[u8]>>(
         &mut self,
         header: &Header,
         payload: B,
@@ -211,12 +228,8 @@ mod tests {
 
             let mut data = vec![];
             let wrote = match magic.endianness() {
-                Endianness::Little => {
-                    data.write_pcap_packet::<LittleEndian, _>(&packet.header, packet.payload)
-                }
-                Endianness::Big => {
-                    data.write_pcap_packet::<BigEndian, _>(&packet.header, packet.payload)
-                }
+                Endianness::Little => data.write_packet::<LittleEndian>(&packet),
+                Endianness::Big => data.write_packet::<BigEndian>(&packet),
             }.unwrap();
 
             assert_eq!(wrote, packet_len);
