@@ -166,10 +166,27 @@ mod tests {
     #[test]
     pub fn test_parse_packet() {
         for (buf, magic) in PACKETS.iter() {
-            let (remaining, packet) =
-                parse_packet(&buf[FileHeader::size()..], magic.endianness()).unwrap();
+            let mut remaining = &buf[FileHeader::size()..];
+
+            let packet = remaining.read_packet(magic.endianness()).unwrap();
 
             assert!(remaining.is_empty());
+            assert_eq!(packet.header.ts_sec, 0x56506e1a);
+            assert_eq!(packet.header.ts_usec, 0x182b0ad0);
+            assert_eq!(packet.header.incl_len, 4);
+            assert_eq!(packet.header.orig_len, 60);
+            assert_eq!(packet.payload, Cow::from(&[0x44u8, 0x41, 0x54, 0x41][..]));
+        }
+    }
+
+    #[test]
+    pub fn test_read_packet() {
+        for (buf, magic) in PACKETS.iter() {
+            let mut reader = BufReader::new(&buf[FileHeader::size()..]);
+
+            let packet = reader.read_packet(magic.endianness()).unwrap();
+
+            assert!(reader.get_ref().is_empty());
             assert_eq!(packet.header.ts_sec, 0x56506e1a);
             assert_eq!(packet.header.ts_usec, 0x182b0ad0);
             assert_eq!(packet.header.incl_len, 4);
