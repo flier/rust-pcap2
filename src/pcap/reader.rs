@@ -287,7 +287,7 @@ mod read {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::borrow::Cow;
 
     use super::*;

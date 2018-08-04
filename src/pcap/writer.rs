@@ -157,9 +157,11 @@ where
         };
 
         match self.file_header.magic().endianness() {
-            Endianness::Little => self.w
+            Endianness::Little => self
+                .w
                 .write_packet_data::<LittleEndian, _>(&packet_header, &payload),
-            Endianness::Big => self.w
+            Endianness::Big => self
+                .w
                 .write_packet_data::<BigEndian, _>(&packet_header, &payload),
         }
     }
@@ -180,7 +182,7 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::borrow::Cow;
     use std::iter::{once, repeat};
     use std::time::Duration;

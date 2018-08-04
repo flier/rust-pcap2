@@ -285,7 +285,7 @@ impl<W: Write + ?Sized> WriteHeaderExt for W {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use byteorder::{BigEndian, LittleEndian};
 
     use pcap::tests::PACKETS;
