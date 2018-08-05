@@ -6,6 +6,7 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
+use pcapng::SectionHeader;
 
 /// Public representation of a parsed block
 ///
@@ -53,18 +54,35 @@ impl<'a> Block<'a> {
     pub fn parse(buf: &'a [u8], endianness: Endianness) -> Result<(&[u8], Self)> {
         parse_block(buf, endianness).map_err(|err| PcapError::from(err).into())
     }
+
+    pub fn as_section_header(&'a self, endianness: Endianness) -> Option<SectionHeader<'a>> {
+        if self.ty == SectionHeader::block_type() {
+            SectionHeader::parse(&self.body, endianness)
+                .map(|(_, section_header)| section_header)
+                .map_err(|err| {
+                    warn!("fail to parse section header: {:?}", err);
+
+                    hexdump!(self.body);
+
+                    err
+                })
+                .ok()
+        } else {
+            None
+        }
+    }
 }
 
 named_args!(parse_block(endianness: Endianness)<Block>,
-    do_parse!(
+    dbg_dmp!(do_parse!(
         ty: u32!(endianness) >>
         len: u32!(endianness) >>
-        body: map!(take!(len), Cow::from) >>
-        _len: u32!(endianness) >>
+        body: map!(take!(len as usize - mem::size_of::<u32>() * 3), Cow::from) >>
+        _len: verify!(u32!(endianness), |n| n == len) >>
         (
             Block { ty, len, body, _len }
         )
-    )
+    ))
 );
 
 pub trait WriteBlock {
