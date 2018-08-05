@@ -1,9 +1,10 @@
 use std::borrow::Cow;
-use std::io::{BufReader, Read};
+use std::io::{BufReader, Read, Write};
 use std::mem;
 use std::result::Result as StdResult;
 use std::str;
 
+use byteorder::{ByteOrder, WriteBytesExt};
 use failure::Error;
 use nom::*;
 use num_traits::FromPrimitive;
@@ -121,6 +122,51 @@ impl<'a, R: Read> ReadOptions<'a> for BufReader<R> {
         }
 
         Ok(options)
+    }
+}
+
+pub trait WriteOptions {
+    fn write_option<'a, T: ByteOrder>(&mut self, opt: &Opt<'a>) -> Result<usize>;
+
+    fn write_options<'a, T: ByteOrder, I: IntoIterator<Item = Opt<'a>>>(
+        &mut self,
+        options: I,
+    ) -> Result<usize> {
+        let mut wrote = 0;
+        let mut found_end_of_opt = false;
+
+        for opt in options {
+            wrote += self.write_option::<T>(&opt)?;
+
+            if opt.is_end_of_opt() {
+                found_end_of_opt = true;
+                break;
+            }
+        }
+
+        if !found_end_of_opt {
+            self.write_option::<T>(&end_of_opt())?;
+        }
+
+        Ok(wrote)
+    }
+}
+
+impl<W: Write + ?Sized> WriteOptions for W {
+    fn write_option<'a, T: ByteOrder>(&mut self, opt: &Opt<'a>) -> Result<usize> {
+        self.write_u16::<T>(opt.code)?;
+        self.write_u16::<T>(opt.len)?;
+        if let Some(pen) = opt.pen {
+            self.write_u32::<T>(pen)?;
+        }
+        self.write(&opt.value)?;
+
+        let pad_len = pad_to::<u32>(opt.value.len()) - opt.value.len();
+        if pad_len > 0 {
+            self.write(&vec![0; pad_len])?;
+        }
+
+        Ok(opt.size())
     }
 }
 
@@ -295,6 +341,8 @@ fn pad_to<T>(size: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use byteorder::LittleEndian;
+
     use super::*;
 
     #[test]
@@ -345,5 +393,22 @@ mod tests {
                 end_of_opt(),
             ]
         );
+    }
+
+    #[test]
+    fn test_write_options() {
+        let options = vec![
+            comment("Windows XP"),
+            custom_str(123, "Test004.exe"),
+            opt(5, "foo"),
+            end_of_opt(),
+        ];
+        let mut buf = vec![];
+
+        assert_eq!(
+            buf.write_options::<LittleEndian, _>(options).unwrap(),
+            LE_OPTIONS.len()
+        );
+        assert_eq!(buf.as_slice(), &LE_OPTIONS[..]);
     }
 }
