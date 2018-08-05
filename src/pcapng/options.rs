@@ -1,58 +1,46 @@
 use std::borrow::Cow;
 use std::io::{BufReader, Read, Write};
 use std::mem;
-use std::result::Result as StdResult;
 use std::str;
 
 use byteorder::{ByteOrder, WriteBytesExt};
 use failure::Error;
 use nom::*;
-use num_traits::FromPrimitive;
 
 use errors::{PcapError, Result};
 
-#[derive(Copy, Clone, Debug, PartialEq, FromPrimitive, ToPrimitive)]
-#[repr(u16)]
-pub enum Code {
-    /// This option delimits the end of the optional fields.
-    EndOfOpt = 0,
+/// This option delimits the end of the optional fields.
+pub const OPT_ENDOFOPT: u16 = 0;
 
-    /// This option is a UTF-8 string containing human-readable comment text
-    /// that is associated to the current block.
-    Comment = 1,
+/// This option is a UTF-8 string containing human-readable comment text
+/// that is associated to the current block.
+pub const OPT_COMMENT: u16 = 1;
 
-    /// This option code identifies a Custom Option containing a UTF-8 string
-    /// in the Custom Data portion, without NULL termination.
-    ///
-    /// This Custom Option can be safely copied to a new file if the pcapng file is manipulated by an application;
-    /// otherwise 19372 should be used instead. See Section 6.2 for details.
-    CustomStr = 2988,
+/// This option code identifies a Custom Option containing a UTF-8 string
+/// in the Custom Data portion, without NULL termination.
+///
+/// This Custom Option can be safely copied to a new file if the pcapng file is manipulated by an application;
+/// otherwise 19372 should be used instead. See Section 6.2 for details.
+pub const OPT_CUSTOM_STR: u16 = 2988;
 
-    /// This option code identifies a Custom Option containing binary octets in the Custom Data portion.
-    ///
-    /// This Custom Option can be safely copied to a new file if the pcapng file is manipulated by an application;
-    /// otherwise 19372 should be used instead. See Section 6.2 for details.
-    CustomBytes = 2989,
+/// This option code identifies a Custom Option containing binary octets in the Custom Data portion.
+///
+/// This Custom Option can be safely copied to a new file if the pcapng file is manipulated by an application;
+/// otherwise 19372 should be used instead. See Section 6.2 for details.
+pub const OPT_CUSTOM_BYTES: u16 = 2989;
 
-    /// This option code identifies a Custom Option containing a UTF-8 string
-    /// in the Custom Data portion, without NULL termination.
-    ///
-    /// This Custom Option should not be copied to a new file if the pcapng file is manipulated by an application.
-    /// See Section 6.2 for details.
-    CustomPrivateStr = 19372,
+/// This option code identifies a Custom Option containing a UTF-8 string
+/// in the Custom Data portion, without NULL termination.
+///
+/// This Custom Option should not be copied to a new file if the pcapng file is manipulated by an application.
+/// See Section 6.2 for details.
+pub const OPT_CUSTOM_PRIVATE_STR: u16 = 19372;
 
-    /// This option code identifies a Custom Option containing binary octets in the Custom Data portion.
-    ///
-    /// This Custom Option should not be copied to a new file if the pcapng file is manipulated by an application.
-    /// See Section 6.2 for details.
-    CustomPrivateBytes = 19373,
-}
-
-impl PartialEq<u16> for Code {
-    fn eq(&self, other: &u16) -> bool {
-        *self as u16 == *other
-    }
-}
+/// This option code identifies a Custom Option containing binary octets in the Custom Data portion.
+///
+/// This Custom Option should not be copied to a new file if the pcapng file is manipulated by an application.
+/// See Section 6.2 for details.
+pub const OPT_CUSTOM_PRIVATE_BYTES: u16 = 19373;
 
 pub type Options<'a> = Vec<Opt<'a>>;
 
@@ -87,7 +75,7 @@ impl<'a, R: Read> ReadOptions<'a> for BufReader<R> {
                 })
                 .map_err(|err| Error::from(PcapError::from(err)))?;
 
-            if Code::EndOfOpt == code {
+            if code == OPT_ENDOFOPT {
                 options.push(end_of_opt());
                 break;
             }
@@ -98,11 +86,11 @@ impl<'a, R: Read> ReadOptions<'a> for BufReader<R> {
 
             buf.split_off(opt_len);
 
-            options.push(match Code::from_u16(code) {
-                Some(Code::CustomStr)
-                | Some(Code::CustomBytes)
-                | Some(Code::CustomPrivateStr)
-                | Some(Code::CustomPrivateBytes) => {
+            options.push(match code {
+                OPT_CUSTOM_STR
+                | OPT_CUSTOM_BYTES
+                | OPT_CUSTOM_PRIVATE_STR
+                | OPT_CUSTOM_PRIVATE_BYTES => {
                     let value = buf.split_off(mem::size_of::<u32>());
                     let pen = u32!(&buf, endianness).map(|(_, pen)| pen).ok();
                     Opt {
@@ -187,27 +175,27 @@ pub fn opt<'a, T: AsRef<[u8]> + ?Sized>(code: u16, value: &'a T) -> Opt<'a> {
 }
 
 pub fn end_of_opt<'a>() -> Opt<'a> {
-    Opt::new(Code::EndOfOpt as u16, b"")
+    Opt::new(OPT_ENDOFOPT as u16, b"")
 }
 
 pub fn comment<'a>(value: &'a str) -> Opt<'a> {
-    Opt::new(Code::Comment as u16, value)
+    Opt::new(OPT_COMMENT as u16, value)
 }
 
 pub fn custom_str<'a>(private_enterprise_number: u32, value: &'a str) -> Opt<'a> {
-    Opt::custom(Code::CustomStr, private_enterprise_number, value)
+    Opt::custom(OPT_CUSTOM_STR, private_enterprise_number, value)
 }
 
 pub fn custom_bytes<'a>(private_enterprise_number: u32, value: &'a [u8]) -> Opt<'a> {
-    Opt::custom(Code::CustomBytes, private_enterprise_number, value)
+    Opt::custom(OPT_CUSTOM_BYTES, private_enterprise_number, value)
 }
 
 pub fn custom_private_str<'a>(private_enterprise_number: u32, value: &'a str) -> Opt<'a> {
-    Opt::custom(Code::CustomPrivateStr, private_enterprise_number, value)
+    Opt::custom(OPT_CUSTOM_PRIVATE_STR, private_enterprise_number, value)
 }
 
 pub fn custom_private_bytes<'a>(private_enterprise_number: u32, value: &'a [u8]) -> Opt<'a> {
-    Opt::custom(Code::CustomPrivateBytes, private_enterprise_number, value)
+    Opt::custom(OPT_CUSTOM_PRIVATE_BYTES, private_enterprise_number, value)
 }
 
 impl<'a> Opt<'a> {
@@ -223,14 +211,14 @@ impl<'a> Opt<'a> {
     }
 
     pub fn custom<T: AsRef<[u8]> + ?Sized>(
-        code: Code,
+        code: u16,
         private_enterprise_number: u32,
         value: &'a T,
     ) -> Opt<'a> {
         let buf = value.as_ref();
 
         Opt {
-            code: code as u16,
+            code,
             len: (mem::size_of::<u32>() + buf.len()) as u16,
             pen: Some(private_enterprise_number),
             value: buf.into(),
@@ -247,10 +235,6 @@ impl<'a> Opt<'a> {
         parse_opt(buf, endianness).map_err(|err| PcapError::from(err).into())
     }
 
-    pub fn code(&self) -> StdResult<Code, u16> {
-        Code::from_u16(self.code).ok_or(self.code)
-    }
-
     pub fn value(&self) -> &[u8] {
         if self.len as usize <= self.value.len() {
             &self.value[..self.len as usize]
@@ -260,11 +244,11 @@ impl<'a> Opt<'a> {
     }
 
     pub fn is_end_of_opt(&self) -> bool {
-        self.code == Code::EndOfOpt as u16
+        self.code == OPT_ENDOFOPT
     }
 
     pub fn as_comment(&self) -> Option<&str> {
-        if self.code() == Ok(Code::Comment) {
+        if self.code == OPT_COMMENT {
             str::from_utf8(self.value()).ok()
         } else {
             None
@@ -272,7 +256,7 @@ impl<'a> Opt<'a> {
     }
 
     pub fn as_custom_str(&self) -> Option<(u32, &str)> {
-        if self.code() == Ok(Code::CustomStr) {
+        if self.code == OPT_CUSTOM_STR {
             str::from_utf8(self.value())
                 .ok()
                 .and_then(|s| self.pen.map(|pen| (pen, s)))
@@ -282,7 +266,7 @@ impl<'a> Opt<'a> {
     }
 
     pub fn as_custom_bytes(&self) -> Option<(u32, &[u8])> {
-        if self.code() == Ok(Code::CustomBytes) {
+        if self.code == OPT_CUSTOM_BYTES {
             self.pen.map(|pen| (pen, self.value()))
         } else {
             None
@@ -290,7 +274,7 @@ impl<'a> Opt<'a> {
     }
 
     pub fn as_custom_private_str(&self) -> Option<(u32, &str)> {
-        if self.code() == Ok(Code::CustomPrivateStr) {
+        if self.code == OPT_CUSTOM_PRIVATE_STR {
             str::from_utf8(self.value())
                 .ok()
                 .and_then(|s| self.pen.map(|pen| (pen, s)))
@@ -299,13 +283,51 @@ impl<'a> Opt<'a> {
         }
     }
     pub fn as_custom_private_bytes(&self) -> Option<(u32, &[u8])> {
-        if self.code() == Ok(Code::CustomPrivateBytes) {
+        if self.code == OPT_CUSTOM_PRIVATE_BYTES {
             self.pen.map(|pen| (pen, self.value()))
         } else {
             None
         }
     }
 }
+
+/// The option list is terminated by a option which uses the special 'End of Option' code (opt_endofopt).
+/// Code that writes pcapng files MUST put an opt_endofopt option at the end of an option list.
+/// Code that reads pcapng files MUST NOT assume an option list will have an opt_endofopt option at the end;
+/// it MUST also check for the end of the block, and SHOULD treat blocks
+/// where the option list has no opt_endofopt option as if the option list had an opt_endofopt option at the end.
+///
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |      Option Code              |         Option Length         |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// /                       Option Value                            /
+/// /              variable length, padded to 32 bits               /
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// /                                                               /
+/// /                 . . . other options . . .                     /
+/// /                                                               /
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |   Option Code == opt_endofopt  |  Option Length == 0          |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+///
+/// Customs Options are used for portable, vendor-specific data related to the block they're in.
+/// A Custom Option can be in any block type that can have options, can be repeated any number of times in a block,
+/// and may come before or after other option types - except the opt_endofopt which is always the last option.
+/// Different Custom Options, of different type codes and/or different Private Enterprise Numbers,
+/// may be used in the same pcapng file. See Section 6 for additional details.
+///
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// |     Custom Option Code        |         Option Length         |
+/// +---------------------------------------------------------------+
+/// |                Private Enterprise Number (PEN)                |
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+/// /                        Custom Data                            /
+/// /              variable length, padded to 32 bits               /
+/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 named_args!(parse_options(endianness: Endianness)<Options>,
     dbg_dmp!(map!(many_till!(apply!(parse_opt, endianness), tag!(b"\0\0\0\0")), |(mut options, _)| {
@@ -318,12 +340,12 @@ named_args!(parse_opt(endianness: Endianness)<Opt>,
     dbg_dmp!(do_parse!(
         code: u16!(endianness) >>
         opt_len: u16!(endianness) >>
-        pen: switch!(map!(value!(code), Code::from_u16),
-            Some(Code::CustomStr)           => map!(u32!(endianness), Some) |
-            Some(Code::CustomBytes)         => map!(u32!(endianness), Some) |
-            Some(Code::CustomPrivateStr)    => map!(u32!(endianness), Some) |
-            Some(Code::CustomPrivateBytes)  => map!(u32!(endianness), Some) |
-            _                               => value!(None)
+        pen: switch!(value!(code),
+            OPT_CUSTOM_STR              => map!(u32!(endianness), Some) |
+            OPT_CUSTOM_BYTES            => map!(u32!(endianness), Some) |
+            OPT_CUSTOM_PRIVATE_STR      => map!(u32!(endianness), Some) |
+            OPT_CUSTOM_PRIVATE_BYTES    => map!(u32!(endianness), Some) |
+            _                           => value!(None)
         ) >>
         val_len: value!(opt_len as usize - pen.map_or(0, |_| mem::size_of::<u32>())) >>
         value: map!(map!(take!(pad_to::<u32>(val_len)), |s| &s[..val_len]), Cow::from) >>
