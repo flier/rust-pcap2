@@ -9,9 +9,11 @@ use byteorder::{BigEndian, LittleEndian, NativeEndian};
 use nom::Endianness;
 
 use errors::Result;
-use pcap::header::{AsEndianness, Header as FileHeader, LinkType, WriteHeaderExt};
+use linktype::LinkType;
+use pcap::header::{Header as FileHeader, WriteHeaderExt};
 use pcap::packet::{Header as PacketHeader, WritePacket};
 use pcap::Packet;
+use traits::AsEndianness;
 
 /// Opens a file as a stream in write-only mode.
 pub fn create<P: AsRef<Path>, W>(path: P) -> Result<Builder<BufWriter<File>>> {

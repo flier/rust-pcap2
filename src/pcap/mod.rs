@@ -6,7 +6,6 @@ mod packet;
 mod reader;
 mod writer;
 
-pub use self::header::LinkType;
 pub use self::reader::{mmap, open, parse, read, ParsePackets, ReadPackets, Reader};
 pub use self::writer::{create, Builder, Writer};
 

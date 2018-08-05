@@ -18,6 +18,7 @@ extern crate pretty_env_logger;
 
 #[macro_use]
 mod errors;
+mod linktype;
 /// Supports the legacy `pcap` format.
 ///
 /// See [Libpcap File Format](https://wiki.wireshark.org/Development/LibpcapFileFormat) for more details.
@@ -26,5 +27,7 @@ pub mod pcap;
 ///
 /// See [PCAP Next Generation Dump File Format](https://wiki.wireshark.org/Development/PcapNg) for more details.
 pub mod pcapng;
+mod traits;
 
 pub use errors::PcapError;
+pub use linktype::LinkType;
