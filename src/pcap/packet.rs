@@ -4,9 +4,10 @@ use std::mem;
 use std::ops::{Deref, DerefMut};
 
 use byteorder::{ByteOrder, WriteBytesExt};
+use failure::Error;
 use nom::*;
 
-use errors::{Error, PcapError, Result};
+use errors::{PcapError, Result};
 
 #[derive(Clone, Debug)]
 pub struct Packet<'a> {
@@ -185,7 +186,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_parse_packet() {
+    pub fn test_parse() {
         for (buf, magic) in PACKETS.iter() {
             let mut remaining = &buf[FileHeader::size()..];
 
@@ -201,7 +202,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_read_packet() {
+    pub fn test_read() {
         for (buf, magic) in PACKETS.iter() {
             let mut reader = BufReader::new(&buf[FileHeader::size()..]);
 
@@ -217,7 +218,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_write_packet() {
+    pub fn test_write() {
         for (buf, magic) in PACKETS.iter() {
             let packet = Packet {
                 header: Header {

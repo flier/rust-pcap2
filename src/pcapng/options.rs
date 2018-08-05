@@ -369,7 +369,7 @@ mod tests {
     use pcapng::{shb_os, shb_userappl};
 
     #[test]
-    pub fn test_option_size() {
+    pub fn test_size() {
         assert_eq!(end_of_opt().size(), 4);
         assert_eq!(comment("test").size(), 8);
         assert_eq!(comment("foo").size(), 8);
@@ -390,15 +390,15 @@ mod tests {
         ];
     }
 
-    const LE_OPTIONS: &[u8] = b"\x03\x00\x0a\x00Windows XP\x00\x00\
-    \x04\x00\x0b\x00Test004.exe\x00\
-    \xac\x0b\x0e\x00\x7b\x00\x00\x00github.com\x00\x00\
-    \x01\x00\x03\x00foo\x00\
-    \x7b\x00\x03\x00bar\x00\
-    \x00\x00\x00\x00";
+    const LE_OPTIONS: &[u8] = b"\x03\0\x0a\0Windows XP\0\0\
+    \x04\0\x0b\0Test004.exe\0\
+    \xac\x0b\x0e\0\x7b\0\0\0github.com\0\0\
+    \x01\0\x03\0foo\0\
+    \x7b\0\x03\0bar\0\
+    \0\0\0\0";
 
     #[test]
-    fn test_parse_options() {
+    fn test_parse() {
         let mut input = &LE_OPTIONS[..];
 
         let options = input.read_options(Endianness::Little).unwrap();
@@ -407,7 +407,7 @@ mod tests {
     }
 
     #[test]
-    fn test_read_options() {
+    fn test_read() {
         let mut input = BufReader::new(&LE_OPTIONS[..]);
 
         let options = input.read_options(Endianness::Little).unwrap();
@@ -416,7 +416,7 @@ mod tests {
     }
 
     #[test]
-    fn test_write_options() {
+    fn test_write() {
         let mut buf = vec![];
 
         assert_eq!(

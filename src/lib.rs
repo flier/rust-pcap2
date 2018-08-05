@@ -10,13 +10,13 @@ extern crate num_derive;
 extern crate byteorder;
 #[macro_use]
 extern crate nom;
+extern crate hexplay;
 extern crate memmap;
 
 #[cfg(test)]
-extern crate hexplay;
-#[cfg(test)]
 extern crate pretty_env_logger;
 
+#[macro_use]
 mod errors;
 /// Supports the legacy `pcap` format.
 ///

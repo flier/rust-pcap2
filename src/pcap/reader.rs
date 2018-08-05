@@ -294,7 +294,7 @@ mod tests {
     use pcap::tests::PACKETS;
 
     #[test]
-    pub fn test_read_packets() {
+    pub fn test_read() {
         for (buf, magic) in PACKETS.iter() {
             let mut packets = read(*buf).unwrap().into_iter();
 
@@ -319,7 +319,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_parse_packets() {
+    pub fn test_parse() {
         for (buf, magic) in PACKETS.iter() {
             let reader = parse(buf).unwrap();
             let mut packets = reader.into_iter();

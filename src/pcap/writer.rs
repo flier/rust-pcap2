@@ -191,7 +191,7 @@ mod tests {
     use pcap::tests::NANO_PACKETS;
 
     #[test]
-    pub fn test_write_packets() {
+    pub fn test_write() {
         for (buf, magic) in NANO_PACKETS.iter() {
             let packet = Packet {
                 timestamp: UNIX_EPOCH + Duration::new(0x56506e1a, 0x182b0ad0),

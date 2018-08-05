@@ -298,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_parse_header() {
+    pub fn test_parse() {
         for (buf, magic) in PACKETS.iter() {
             let (remaining, header) = Header::parse(buf).unwrap();
 
@@ -316,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_write_header() {
+    pub fn test_write() {
         for (buf, magic) in PACKETS.iter() {
             let header = Header {
                 magic_number: *magic as u32,

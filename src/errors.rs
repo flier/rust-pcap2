@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use std::result::Result as StdResult;
 
-pub use failure::Error;
+use failure::Error;
 use nom;
 
 pub type Result<T> = StdResult<T, Error>;
@@ -51,4 +51,20 @@ pub fn format_nom_error<O>(input: &[u8], res: nom::IResult<&[u8], O>) -> String 
     }
 
     output
+}
+
+#[macro_export]
+macro_rules! hexdump {
+    ($data:expr) => {
+        hexdump!($data, 0)
+    };
+    ($data:expr, $offset:expr) => {
+        hexdump!($data, $offset, 16)
+    };
+    ($data:expr, $offset:expr, $width:expr) => {
+        ::hexplay::HexViewBuilder::new(&$data)
+            .address_offset($offset)
+            .row_width($width)
+            .finish()
+    };
 }
