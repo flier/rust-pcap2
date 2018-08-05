@@ -116,7 +116,7 @@ impl<'a, R: Read> ReadOptions<'a> for BufReader<R> {
 pub trait WriteOptions {
     fn write_option<'a, T: ByteOrder>(&mut self, opt: &Opt<'a>) -> Result<usize>;
 
-    fn write_options<'a, T: ByteOrder, I: IntoIterator<Item = Opt<'a>>>(
+    fn write_options<'a, T: ByteOrder, I: IntoIterator<Item = &'a Opt<'a>>>(
         &mut self,
         options: I,
     ) -> Result<usize> {
@@ -329,15 +329,15 @@ impl<'a> Opt<'a> {
 /// /              variable length, padded to 32 bits               /
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-named_args!(parse_options(endianness: Endianness)<Options>,
-    dbg_dmp!(map!(many_till!(apply!(parse_opt, endianness), tag!(b"\0\0\0\0")), |(mut options, _)| {
+named_args!(pub parse_options(endianness: Endianness)<Options>,
+    map!(many_till!(apply!(parse_opt, endianness), tag!(b"\0\0\0\0")), |(mut options, _)| {
         options.push(end_of_opt());
         options
-    }))
+    })
 );
 
 named_args!(parse_opt(endianness: Endianness)<Opt>,
-    dbg_dmp!(do_parse!(
+    do_parse!(
         code: u16!(endianness) >>
         opt_len: u16!(endianness) >>
         pen: switch!(value!(code),
@@ -352,7 +352,7 @@ named_args!(parse_opt(endianness: Endianness)<Opt>,
         (
             Opt { code, len: opt_len as u16, pen, value }
         )
-    ))
+    )
 );
 
 fn pad_to<T>(size: usize) -> usize {
@@ -366,6 +366,7 @@ mod tests {
     use byteorder::LittleEndian;
 
     use super::*;
+    use pcapng::{shb_os, shb_userappl};
 
     #[test]
     pub fn test_option_size() {
@@ -378,9 +379,22 @@ mod tests {
         assert_eq!(custom_private_bytes(123, b"foo").size(), 12);
     }
 
-    const LE_OPTIONS: &[u8] = b"\x01\x00\x0a\x00Windows XP\x00\x00\
-    \xac\x0b\x0f\x00\x7b\x00\x00\x00Test004.exe\x00\
-    \x05\x00\x03\x00foo\x00\
+    lazy_static! {
+        static ref OPTIONS: Vec<Opt<'static>> = vec![
+            shb_os("Windows XP"),
+            shb_userappl("Test004.exe"),
+            custom_str(123, "github.com"),
+            comment("foo"),
+            opt(123, "bar"),
+            end_of_opt(),
+        ];
+    }
+
+    const LE_OPTIONS: &[u8] = b"\x03\x00\x0a\x00Windows XP\x00\x00\
+    \x04\x00\x0b\x00Test004.exe\x00\
+    \xac\x0b\x0e\x00\x7b\x00\x00\x00github.com\x00\x00\
+    \x01\x00\x03\x00foo\x00\
+    \x7b\x00\x03\x00bar\x00\
     \x00\x00\x00\x00";
 
     #[test]
@@ -389,15 +403,7 @@ mod tests {
 
         let options = input.read_options(Endianness::Little).unwrap();
 
-        assert_eq!(
-            options,
-            vec![
-                comment("Windows XP"),
-                custom_str(123, "Test004.exe"),
-                opt(5, "foo"),
-                end_of_opt(),
-            ]
-        );
+        assert_eq!(options, *OPTIONS);
     }
 
     #[test]
@@ -406,29 +412,16 @@ mod tests {
 
         let options = input.read_options(Endianness::Little).unwrap();
 
-        assert_eq!(
-            options,
-            vec![
-                comment("Windows XP"),
-                custom_str(123, "Test004.exe"),
-                opt(5, "foo"),
-                end_of_opt(),
-            ]
-        );
+        assert_eq!(options, *OPTIONS);
     }
 
     #[test]
     fn test_write_options() {
-        let options = vec![
-            comment("Windows XP"),
-            custom_str(123, "Test004.exe"),
-            opt(5, "foo"),
-            end_of_opt(),
-        ];
         let mut buf = vec![];
 
         assert_eq!(
-            buf.write_options::<LittleEndian, _>(options).unwrap(),
+            buf.write_options::<LittleEndian, _>(OPTIONS.iter())
+                .unwrap(),
             LE_OPTIONS.len()
         );
         assert_eq!(buf.as_slice(), &LE_OPTIONS[..]);
