@@ -22,13 +22,15 @@ keywords = [
 ]
 
 [dependencies]
+log = "0.4"
 failure = "0.1"
+lazy_static = "1.0"
 num-traits = "0.2"
 num-derive = "0.2"
 byteorder = "1.2"
-nom = "4.0"
+nom = { version = "4.0", features = ["verbose-errors", "regexp_macros"] }
 memmap = "0.6"
 
 [dev-dependencies]
-lazy_static = "1.0"
+pretty_env_logger = "0.2"
 hexplay = "0.2"

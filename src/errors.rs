@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::fmt::Write;
 use std::result::Result as StdResult;
 
 pub use failure::Error;
@@ -17,8 +19,10 @@ pub enum PcapError {
     InvalidFormat(nom::ErrorKind<u32>),
 }
 
-impl<I> From<nom::Err<I, u32>> for PcapError {
-    fn from(err: nom::Err<I, u32>) -> Self {
+impl<'a> From<nom::Err<&'a [u8], u32>> for PcapError {
+    fn from(err: nom::Err<&[u8], u32>) -> Self {
+        warn!("parse failed: {:#?}", err);
+
         match err {
             nom::Err::Incomplete(needed) => PcapError::IncompleteData(needed),
             nom::Err::Error(ctx) | nom::Err::Failure(ctx) => {
@@ -26,4 +30,25 @@ impl<I> From<nom::Err<I, u32>> for PcapError {
             }
         }
     }
+}
+
+lazy_static! {
+    static ref TAGS: HashMap<u32, &'static str> = {
+        let mut tags: HashMap<u32, &str> = HashMap::new();
+        tags.insert(0, "tag");
+        tags
+    };
+}
+
+#[allow(dead_code)]
+pub fn format_nom_error<O>(input: &[u8], res: nom::IResult<&[u8], O>) -> String {
+    let mut output = String::new();
+
+    if let Some(v) = nom::prepare_errors(input, res) {
+        let colors = nom::generate_colors(&v);
+        write!(&mut output, "parsers: {}", nom::print_codes(&colors, &TAGS)).unwrap();
+        write!(&mut output, "{}", nom::print_offsets(input, 0, &v)).unwrap();
+    }
+
+    output
 }

@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::mem;
+use std::result::Result as StdResult;
 use std::str;
 
 use failure::Error;
@@ -45,6 +46,12 @@ pub enum Code {
     CustomPrivateBytes = 19373,
 }
 
+impl PartialEq<u16> for Code {
+    fn eq(&self, other: &u16) -> bool {
+        *self as u16 == *other
+    }
+}
+
 pub type Options<'a> = Vec<Opt<'a>>;
 
 pub trait ReadOptions<'a> {
@@ -62,29 +69,7 @@ impl<'a> ReadOptions<'a> for &'a [u8] {
     }
 }
 
-pub fn parse_options<'a>(
-    mut input: &'a [u8],
-    endianness: Endianness,
-) -> IResult<&'a [u8], Options<'a>> {
-    let mut options = vec![];
-
-    loop {
-        let (remaining, opt) = parse_opt(input, endianness)?;
-
-        let code = opt.code();
-
-        options.push(opt);
-        input = remaining;
-
-        if code == Some(Code::EndOfOpt) || input.is_empty() {
-            break;
-        }
-    }
-
-    Ok((input, options))
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Opt<'a> {
     /// The code that specifies the type of the current TLV record.
     pub code: u16,
@@ -96,12 +81,16 @@ pub struct Opt<'a> {
     pub value: Cow<'a, [u8]>,
 }
 
+pub fn opt<'a, T: AsRef<[u8]> + ?Sized>(code: u16, value: &'a T) -> Opt<'a> {
+    Opt::new(code, value)
+}
+
 pub fn end_of_opt<'a>() -> Opt<'a> {
-    Opt::new(Code::EndOfOpt, b"")
+    Opt::new(Code::EndOfOpt as u16, b"")
 }
 
 pub fn comment<'a>(value: &'a str) -> Opt<'a> {
-    Opt::new(Code::Comment, value)
+    Opt::new(Code::Comment as u16, value)
 }
 
 pub fn custom_str<'a>(private_enterprise_number: u32, value: &'a str) -> Opt<'a> {
@@ -121,13 +110,12 @@ pub fn custom_private_bytes<'a>(private_enterprise_number: u32, value: &'a [u8])
 }
 
 impl<'a> Opt<'a> {
-    pub fn new<T: AsRef<[u8]> + ?Sized>(code: Code, value: &'a T) -> Opt<'a> {
+    pub fn new<T: AsRef<[u8]> + ?Sized>(code: u16, value: &'a T) -> Opt<'a> {
         let buf = value.as_ref();
-        let len = pad_to::<u32>(buf.len() as usize);
 
         Opt {
-            code: code as u16,
-            len: len as u16,
+            code,
+            len: buf.len() as u16,
             pen: None,
             value: buf.into(),
         }
@@ -139,11 +127,10 @@ impl<'a> Opt<'a> {
         value: &'a T,
     ) -> Opt<'a> {
         let buf = value.as_ref();
-        let len = pad_to::<u32>(buf.len() as usize);
 
         Opt {
             code: code as u16,
-            len: len as u16,
+            len: buf.len() as u16,
             pen: Some(private_enterprise_number),
             value: buf.into(),
         }
@@ -151,7 +138,7 @@ impl<'a> Opt<'a> {
 
     pub fn size(&self) -> usize {
         mem::size_of::<u16>() * 2
-            + self.pen.map_or(0, |n| mem::size_of_val(&n))
+            + self.pen.map_or(0, |_| mem::size_of::<u32>())
             + pad_to::<u32>(self.value.len())
     }
 
@@ -159,8 +146,8 @@ impl<'a> Opt<'a> {
         parse_opt(buf, endianness).map_err(|err| PcapError::from(err).into())
     }
 
-    pub fn code(&self) -> Option<Code> {
-        Code::from_u16(self.code)
+    pub fn code(&self) -> StdResult<Code, u16> {
+        Code::from_u16(self.code).ok_or(self.code)
     }
 
     pub fn value(&self) -> &[u8] {
@@ -176,7 +163,7 @@ impl<'a> Opt<'a> {
     }
 
     pub fn as_comment(&self) -> Option<&str> {
-        if self.code() == Some(Code::Comment) {
+        if self.code() == Ok(Code::Comment) {
             str::from_utf8(self.value()).ok()
         } else {
             None
@@ -184,7 +171,7 @@ impl<'a> Opt<'a> {
     }
 
     pub fn as_custom_str(&self) -> Option<(u32, &str)> {
-        if self.code() == Some(Code::CustomStr) {
+        if self.code() == Ok(Code::CustomStr) {
             str::from_utf8(self.value())
                 .ok()
                 .and_then(|s| self.pen.map(|pen| (pen, s)))
@@ -194,7 +181,7 @@ impl<'a> Opt<'a> {
     }
 
     pub fn as_custom_bytes(&self) -> Option<(u32, &[u8])> {
-        if self.code() == Some(Code::CustomBytes) {
+        if self.code() == Ok(Code::CustomBytes) {
             self.pen.map(|pen| (pen, self.value()))
         } else {
             None
@@ -202,7 +189,7 @@ impl<'a> Opt<'a> {
     }
 
     pub fn as_custom_private_str(&self) -> Option<(u32, &str)> {
-        if self.code() == Some(Code::CustomPrivateStr) {
+        if self.code() == Ok(Code::CustomPrivateStr) {
             str::from_utf8(self.value())
                 .ok()
                 .and_then(|s| self.pen.map(|pen| (pen, s)))
@@ -211,7 +198,7 @@ impl<'a> Opt<'a> {
         }
     }
     pub fn as_custom_private_bytes(&self) -> Option<(u32, &[u8])> {
-        if self.code() == Some(Code::CustomPrivateBytes) {
+        if self.code() == Ok(Code::CustomPrivateBytes) {
             self.pen.map(|pen| (pen, self.value()))
         } else {
             None
@@ -219,22 +206,30 @@ impl<'a> Opt<'a> {
     }
 }
 
+named_args!(parse_options(endianness: Endianness)<Options>,
+    dbg_dmp!(map!(many_till!(apply!(parse_opt, endianness), tag!(b"\0\0\0\0")), |(mut options, _)| {
+        options.push(end_of_opt());
+        options
+    }))
+);
+
 named_args!(parse_opt(endianness: Endianness)<Opt>,
-    do_parse!(
+    dbg_dmp!(do_parse!(
         code: u16!(endianness) >>
-        len: u16!(endianness) >>
-        pen: switch!(map_opt!(value!(code), Code::from_u16),
-            Code::CustomStr             => map!(u32!(endianness), Some) |
-            Code::CustomBytes           => map!(u32!(endianness), Some) |
-            Code::CustomPrivateStr      => map!(u32!(endianness), Some) |
-            Code::CustomPrivateBytes    => map!(u32!(endianness), Some) |
-            _                           => value!(None)
+        opt_len: u16!(endianness) >>
+        pen: switch!(map!(value!(code), Code::from_u16),
+            Some(Code::CustomStr)           => map!(u32!(endianness), Some) |
+            Some(Code::CustomBytes)         => map!(u32!(endianness), Some) |
+            Some(Code::CustomPrivateStr)    => map!(u32!(endianness), Some) |
+            Some(Code::CustomPrivateBytes)  => map!(u32!(endianness), Some) |
+            _                               => value!(None)
         ) >>
-        value: map!(take!(pad_to::<u32>(len as usize - pen.map_or(0, |n| mem::size_of_val(&n)))), Cow::from) >>
+        val_len: value!(opt_len as usize - pen.map_or(0, |_| mem::size_of::<u32>())) >>
+        value: map!(map!(take!(pad_to::<u32>(val_len)), |s| &s[..val_len]), Cow::from) >>
         (
-            Opt { code, len, pen, value }
+            Opt { code, len: val_len as u16, pen, value }
         )
-    )
+    ))
 );
 
 fn pad_to<T>(size: usize) -> usize {
@@ -256,5 +251,27 @@ mod tests {
         assert_eq!(custom_bytes(123, b"foo").size(), 12);
         assert_eq!(custom_private_str(123, "test").size(), 12);
         assert_eq!(custom_private_bytes(123, b"foo").size(), 12);
+    }
+
+    const LE_OPTIONS: &[u8] = b"\x01\x00\x0a\x00Windows XP\x00\x00\
+    \xac\x0b\x0f\x00\x7b\x00\x00\x00Test004.exe\x00\
+    \x05\x00\x03\x00foo\x00\
+    \x00\x00\x00\x00";
+
+    #[test]
+    fn test_parse_options() {
+        let mut input = &LE_OPTIONS[..];
+
+        let options = input.read_options(Endianness::Little).unwrap();
+
+        assert_eq!(
+            options,
+            vec![
+                comment("Windows XP"),
+                custom_str(123, "Test004.exe"),
+                opt(5, "foo"),
+                end_of_opt(),
+            ]
+        );
     }
 }

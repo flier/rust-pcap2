@@ -1,5 +1,9 @@
 #[macro_use]
+extern crate log;
+#[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate lazy_static;
 extern crate num_traits;
 #[macro_use]
 extern crate num_derive;
@@ -9,10 +13,9 @@ extern crate nom;
 extern crate memmap;
 
 #[cfg(test)]
-#[macro_use]
-extern crate lazy_static;
-#[cfg(test)]
 extern crate hexplay;
+#[cfg(test)]
+extern crate pretty_env_logger;
 
 mod errors;
 /// Supports the legacy `pcap` format.
