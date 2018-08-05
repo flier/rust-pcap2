@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::io::{BufReader, Read};
 use std::mem;
 use std::result::Result as StdResult;
 use std::str;
@@ -69,6 +70,60 @@ impl<'a> ReadOptions<'a> for &'a [u8] {
     }
 }
 
+impl<'a, R: Read> ReadOptions<'a> for BufReader<R> {
+    fn read_options(&mut self, endianness: Endianness) -> Result<Options<'a>> {
+        let mut options = vec![];
+
+        loop {
+            let hdr_len = mem::size_of::<u16>() * 2;
+            let mut buf = vec![0; hdr_len];
+
+            self.read_exact(&mut buf)?;
+
+            let (code, opt_len) = u16!(&buf, endianness)
+                .and_then(|(remaining, code)| {
+                    u16!(remaining, endianness).map(|(_, len)| (code, len as usize))
+                })
+                .map_err(|err| Error::from(PcapError::from(err)))?;
+
+            if Code::EndOfOpt == code {
+                options.push(end_of_opt());
+                break;
+            }
+
+            let mut buf = vec![0; pad_to::<u32>(opt_len)];
+
+            self.read_exact(&mut buf)?;
+
+            buf.split_off(opt_len);
+
+            options.push(match Code::from_u16(code) {
+                Some(Code::CustomStr)
+                | Some(Code::CustomBytes)
+                | Some(Code::CustomPrivateStr)
+                | Some(Code::CustomPrivateBytes) => {
+                    let value = buf.split_off(mem::size_of::<u32>());
+                    let pen = u32!(&buf, endianness).map(|(_, pen)| pen).ok();
+                    Opt {
+                        code,
+                        len: opt_len as u16,
+                        pen,
+                        value: value.into(),
+                    }
+                }
+                _ => Opt {
+                    code,
+                    len: opt_len as u16,
+                    pen: None,
+                    value: buf.into(),
+                },
+            })
+        }
+
+        Ok(options)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Opt<'a> {
     /// The code that specifies the type of the current TLV record.
@@ -130,7 +185,7 @@ impl<'a> Opt<'a> {
 
         Opt {
             code: code as u16,
-            len: buf.len() as u16,
+            len: (mem::size_of::<u32>() + buf.len()) as u16,
             pen: Some(private_enterprise_number),
             value: buf.into(),
         }
@@ -227,7 +282,7 @@ named_args!(parse_opt(endianness: Endianness)<Opt>,
         val_len: value!(opt_len as usize - pen.map_or(0, |_| mem::size_of::<u32>())) >>
         value: map!(map!(take!(pad_to::<u32>(val_len)), |s| &s[..val_len]), Cow::from) >>
         (
-            Opt { code, len: val_len as u16, pen, value }
+            Opt { code, len: opt_len as u16, pen, value }
         )
     ))
 );
@@ -261,6 +316,23 @@ mod tests {
     #[test]
     fn test_parse_options() {
         let mut input = &LE_OPTIONS[..];
+
+        let options = input.read_options(Endianness::Little).unwrap();
+
+        assert_eq!(
+            options,
+            vec![
+                comment("Windows XP"),
+                custom_str(123, "Test004.exe"),
+                opt(5, "foo"),
+                end_of_opt(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_read_options() {
+        let mut input = BufReader::new(&LE_OPTIONS[..]);
 
         let options = input.read_options(Endianness::Little).unwrap();
 
