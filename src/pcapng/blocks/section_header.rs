@@ -1,11 +1,13 @@
 use std::io::Write;
 use std::mem;
+use std::str;
 
 use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
 use pcapng::options::{opt, parse_options, Opt, Options, WriteOptions};
+use pcapng::Block;
 
 pub const BLOCK_TYPE: u32 = 0x0A0D0D0A;
 
@@ -24,18 +26,18 @@ pub const SHB_OS: u16 = 3;
 pub const SHB_USERAPPL: u16 = 4;
 
 /// the description of the hardware used to create this section.
-pub fn shb_hardware<'a, T: AsRef<[u8]> + ?Sized>(value: &'a T) -> Opt<'a> {
-    opt(SHB_HARDWARE, value)
+pub fn shb_hardware<'a, T: AsRef<str> + ?Sized>(value: &'a T) -> Opt<'a> {
+    opt(SHB_HARDWARE, value.as_ref())
 }
 
 /// the name of the operating system used to create this section.
-pub fn shb_os<'a, T: AsRef<[u8]> + ?Sized>(value: &'a T) -> Opt<'a> {
-    opt(SHB_OS, value)
+pub fn shb_os<'a, T: AsRef<str> + ?Sized>(value: &'a T) -> Opt<'a> {
+    opt(SHB_OS, value.as_ref())
 }
 
 /// the name of the application used to create this section.
-pub fn shb_userappl<'a, T: AsRef<[u8]> + ?Sized>(value: &'a T) -> Opt<'a> {
-    opt(SHB_USERAPPL, value)
+pub fn shb_userappl<'a, T: AsRef<str> + ?Sized>(value: &'a T) -> Opt<'a> {
+    opt(SHB_USERAPPL, value.as_ref())
 }
 
 /// The `SectionHeader` identifies the beginning of a section of the capture capture file.
@@ -79,6 +81,27 @@ impl<'a> SectionHeader<'a> {
 
     pub fn parse(buf: &'a [u8], endianness: Endianness) -> Result<(&'a [u8], Self)> {
         parse_section_header(buf, endianness).map_err(|err| PcapError::from(err).into())
+    }
+
+    pub fn hardware(&self) -> Option<&str> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == SHB_HARDWARE)
+            .and_then(|opt| opt.as_str())
+    }
+
+    pub fn os(&self) -> Option<&str> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == SHB_OS)
+            .and_then(|opt| opt.as_str())
+    }
+
+    pub fn userappl(&self) -> Option<&str> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == SHB_USERAPPL)
+            .and_then(|opt| opt.as_str())
     }
 }
 
@@ -144,6 +167,25 @@ impl<W: Write + ?Sized> WriteSectionHeader for W {
     }
 }
 
+impl<'a> Block<'a> {
+    pub fn as_section_header(&'a self, endianness: Endianness) -> Option<SectionHeader<'a>> {
+        if self.ty == SectionHeader::block_type() {
+            SectionHeader::parse(&self.body, endianness)
+                .map(|(_, section_header)| section_header)
+                .map_err(|err| {
+                    warn!("fail to parse section header: {:?}", err);
+
+                    hexdump!(self.body);
+
+                    err
+                })
+                .ok()
+        } else {
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use byteorder::LittleEndian;
@@ -180,7 +222,7 @@ mod tests {
 
         assert_eq!(remaining, b"");
         assert_eq!(block.ty, BLOCK_TYPE);
-        assert_eq!(block.len, 192);
+        assert_eq!(block.len as usize, LE_SECTION_HEADER.len());
 
         let section_header = block.as_section_header(Endianness::Little).unwrap();
 
@@ -191,8 +233,7 @@ mod tests {
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = buf
-            .write_section_header::<LittleEndian>(&SECTION_HEADER.clone())
+        let wrote = buf.write_section_header::<LittleEndian>(&SECTION_HEADER.clone())
             .unwrap();
 
         assert_eq!(wrote, SECTION_HEADER.size());
