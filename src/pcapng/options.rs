@@ -171,15 +171,15 @@ pub struct Opt<'a> {
 }
 
 pub fn opt<'a, T: AsRef<[u8]> + ?Sized>(code: u16, value: &'a T) -> Opt<'a> {
-    Opt::new(code, value)
+    Opt::new(code, value.as_ref())
 }
 
 pub fn end_of_opt<'a>() -> Opt<'a> {
-    Opt::new(OPT_ENDOFOPT as u16, b"")
+    Opt::new(OPT_ENDOFOPT, &[][..])
 }
 
 pub fn comment<'a>(value: &'a str) -> Opt<'a> {
-    Opt::new(OPT_COMMENT as u16, value)
+    Opt::new(OPT_COMMENT, value.as_bytes())
 }
 
 pub fn custom_str<'a>(private_enterprise_number: u32, value: &'a str) -> Opt<'a> {
@@ -199,15 +199,42 @@ pub fn custom_private_bytes<'a>(private_enterprise_number: u32, value: &'a [u8])
 }
 
 impl<'a> Opt<'a> {
-    pub fn new<T: AsRef<[u8]> + ?Sized>(code: u16, value: &'a T) -> Opt<'a> {
-        let buf = value.as_ref();
+    pub fn new<T: Into<Cow<'a, [u8]>>>(code: u16, value: T) -> Opt<'a> {
+        let value = value.into();
 
         Opt {
             code,
-            len: buf.len() as u16,
+            len: value.len() as u16,
             pen: None,
-            value: buf.into(),
+            value: value.into(),
         }
+    }
+
+    pub fn from_iter<T: IntoIterator<Item = u8>>(code: u16, iter: T) -> Self {
+        let value = iter.into_iter().collect::<Vec<u8>>();
+
+        Opt {
+            code,
+            len: value.len() as u16,
+            pen: None,
+            value: value.into(),
+        }
+    }
+
+    pub fn u64<T: ByteOrder>(code: u16, value: u64) -> Opt<'a> {
+        let mut buf = vec![0; mem::size_of::<u64>()];
+
+        buf.write_u64::<T>(value).unwrap();
+
+        Opt::new(code, buf)
+    }
+
+    pub fn u32<T: ByteOrder>(code: u16, value: u32) -> Opt<'a> {
+        let mut buf = vec![0; mem::size_of::<u32>()];
+
+        buf.write_u32::<T>(value).unwrap();
+
+        Opt::new(code, buf)
     }
 
     pub fn custom<T: AsRef<[u8]> + ?Sized>(
@@ -241,6 +268,10 @@ impl<'a> Opt<'a> {
         } else {
             &self.value
         }
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        str::from_utf8(&self.value).ok()
     }
 
     pub fn is_end_of_opt(&self) -> bool {
