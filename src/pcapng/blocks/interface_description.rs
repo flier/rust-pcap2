@@ -165,11 +165,11 @@ impl<'a> InterfaceDescription<'a> {
     pub fn ipv4addr(&self) -> Vec<(Ipv4Addr, Ipv4Addr)> {
         self.options
             .iter()
-            .filter(|opt| opt.code == IF_IPV4ADDR && opt.len as usize == mem::size_of::<u32>() * 2)
+            .filter(|opt| opt.code == IF_IPV4ADDR && opt.value.len() == mem::size_of::<u32>() * 2)
             .map(|opt| {
                 (
-                    Ipv4Addr::from(*array_ref![opt.value(), 0, 4]),
-                    Ipv4Addr::from(*array_ref![opt.value(), 4, 4]),
+                    Ipv4Addr::from(*array_ref![opt.value, 0, 4]),
+                    Ipv4Addr::from(*array_ref![opt.value, 4, 4]),
                 )
             })
             .collect()
@@ -178,43 +178,38 @@ impl<'a> InterfaceDescription<'a> {
     pub fn ipv6addr(&self) -> Vec<(Ipv6Addr, u8)> {
         self.options
             .iter()
-            .filter(|opt| opt.code == IF_IPV6ADDR && opt.len == 17)
-            .map(|opt| {
-                (
-                    Ipv6Addr::from(*array_ref![opt.value(), 0, 16]),
-                    opt.value()[16],
-                )
-            })
+            .filter(|opt| opt.code == IF_IPV6ADDR && opt.value.len() == 17)
+            .map(|opt| (Ipv6Addr::from(*array_ref![opt.value, 0, 16]), opt.value[16]))
             .collect()
     }
 
     pub fn macaddr(&self) -> Option<&MacAddr> {
         self.options
             .iter()
-            .find(|opt| opt.code == IF_MACADDR && opt.len == 6)
-            .map(|opt| array_ref![opt.value(), 0, 6])
+            .find(|opt| opt.code == IF_MACADDR && opt.value.len() == 6)
+            .map(|opt| array_ref![opt.value, 0, 6])
     }
 
     pub fn euiaddr(&self) -> Option<&EuiAddr> {
         self.options
             .iter()
-            .find(|opt| opt.code == IF_EUIADDR && opt.len == 8)
-            .map(|opt| array_ref![opt.value(), 0, 8])
+            .find(|opt| opt.code == IF_EUIADDR && opt.value.len() == 8)
+            .map(|opt| array_ref![opt.value, 0, 8])
     }
 
     pub fn speed<T: ByteOrder>(&self) -> Option<u64> {
         self.options
             .iter()
-            .find(|opt| opt.code == IF_SPEED && opt.len as usize == mem::size_of::<u64>())
-            .map(|opt| T::read_u64(opt.value()))
+            .find(|opt| opt.code == IF_SPEED && opt.value.len() == mem::size_of::<u64>())
+            .map(|opt| T::read_u64(&opt.value))
     }
 
     pub fn tsresol(&self) -> Option<i8> {
         self.options
             .iter()
-            .find(|opt| opt.code == IF_TSRESOL && opt.len == 1)
+            .find(|opt| opt.code == IF_TSRESOL && opt.value.len() == 1)
             .map(|opt| {
-                let n = opt.value()[0];
+                let n = opt.value[0];
 
                 if (n & 0x80) == 0x80 {
                     -((n & 0x7F) as i8)
@@ -227,8 +222,8 @@ impl<'a> InterfaceDescription<'a> {
     pub fn tzone<T: ByteOrder>(&self) -> Option<u32> {
         self.options
             .iter()
-            .find(|opt| opt.code == IF_TZONE && opt.len as usize == mem::size_of::<u32>())
-            .map(|opt| T::read_u32(opt.value()))
+            .find(|opt| opt.code == IF_TZONE && opt.value.len() == mem::size_of::<u32>())
+            .map(|opt| T::read_u32(&opt.value))
     }
 
     pub fn filter(&self) -> Option<&str> {
@@ -248,15 +243,15 @@ impl<'a> InterfaceDescription<'a> {
     pub fn fcslen(&self) -> Option<u8> {
         self.options
             .iter()
-            .find(|opt| opt.code == IF_FCSLEN && opt.len == 1)
-            .map(|opt| opt.value()[0])
+            .find(|opt| opt.code == IF_FCSLEN && opt.value.len() == 1)
+            .map(|opt| opt.value[0])
     }
 
     pub fn tsoffset<T: ByteOrder>(&self) -> Option<u64> {
         self.options
             .iter()
-            .find(|opt| opt.code == IF_TSOFFSET && opt.len as usize == mem::size_of::<u64>())
-            .map(|opt| T::read_u64(opt.value()))
+            .find(|opt| opt.code == IF_TSOFFSET && opt.value.len() == mem::size_of::<u64>())
+            .map(|opt| T::read_u64(&opt.value))
     }
 }
 

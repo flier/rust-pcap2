@@ -85,27 +85,7 @@ impl<'a, R: Read> ReadOptions<'a> for BufReader<R> {
 
             buf.split_off(opt_len);
 
-            options.push(match code {
-                OPT_CUSTOM_STR
-                | OPT_CUSTOM_BYTES
-                | OPT_CUSTOM_PRIVATE_STR
-                | OPT_CUSTOM_PRIVATE_BYTES => {
-                    let value = buf.split_off(mem::size_of::<u32>());
-                    let pen = u32!(&buf, endianness).map(|(_, pen)| pen).ok();
-                    Opt {
-                        code,
-                        len: opt_len as u16,
-                        pen,
-                        value: value.into(),
-                    }
-                }
-                _ => Opt {
-                    code,
-                    len: opt_len as u16,
-                    pen: None,
-                    value: buf.into(),
-                },
-            })
+            options.push(Opt::new(code, buf))
         }
 
         Ok(options)
@@ -142,10 +122,7 @@ pub trait WriteOptions {
 impl<W: Write + ?Sized> WriteOptions for W {
     fn write_option<'a, T: ByteOrder>(&mut self, opt: &Opt<'a>) -> Result<usize> {
         self.write_u16::<T>(opt.code)?;
-        self.write_u16::<T>(opt.len)?;
-        if let Some(pen) = opt.pen {
-            self.write_u32::<T>(pen)?;
-        }
+        self.write_u16::<T>(opt.value.len() as u16)?;
         self.write_all(&opt.value)?;
 
         let padded_len = pad_to::<u32>(opt.value.len()) - opt.value.len();
@@ -161,10 +138,6 @@ impl<W: Write + ?Sized> WriteOptions for W {
 pub struct Opt<'a> {
     /// The code that specifies the type of the current TLV record.
     pub code: u16,
-    /// The actual length of the following 'Option Value' field without the padding octets.
-    pub len: u16,
-    /// An IANA-assigned Private Enterprise Number identifying the organization which defined the Custom Option.
-    pub pen: Option<u32>,
     /// The value of the given option, padded to a 32-bit boundary.
     pub value: Cow<'a, [u8]>,
 }
@@ -181,43 +154,47 @@ pub fn comment(value: &str) -> Opt {
     Opt::new(OPT_COMMENT, value.as_bytes())
 }
 
-pub fn custom_str(private_enterprise_number: u32, value: &str) -> Opt {
-    Opt::custom(OPT_CUSTOM_STR, private_enterprise_number, value)
+pub fn custom_str<T: ByteOrder>(private_enterprise_number: u32, value: &str) -> Opt {
+    Opt::custom::<T, _>(OPT_CUSTOM_STR, private_enterprise_number, value)
 }
 
-pub fn custom_bytes(private_enterprise_number: u32, value: &[u8]) -> Opt {
-    Opt::custom(OPT_CUSTOM_BYTES, private_enterprise_number, value)
+pub fn custom_bytes<T: ByteOrder>(private_enterprise_number: u32, value: &[u8]) -> Opt {
+    Opt::custom::<T, _>(OPT_CUSTOM_BYTES, private_enterprise_number, value)
 }
 
-pub fn custom_private_str(private_enterprise_number: u32, value: &str) -> Opt {
-    Opt::custom(OPT_CUSTOM_PRIVATE_STR, private_enterprise_number, value)
+pub fn custom_private_str<T: ByteOrder>(private_enterprise_number: u32, value: &str) -> Opt {
+    Opt::custom::<T, _>(OPT_CUSTOM_PRIVATE_STR, private_enterprise_number, value)
 }
 
-pub fn custom_private_bytes(private_enterprise_number: u32, value: &[u8]) -> Opt {
-    Opt::custom(OPT_CUSTOM_PRIVATE_BYTES, private_enterprise_number, value)
+pub fn custom_private_bytes<T: ByteOrder>(private_enterprise_number: u32, value: &[u8]) -> Opt {
+    Opt::custom::<T, _>(OPT_CUSTOM_PRIVATE_BYTES, private_enterprise_number, value)
 }
 
 impl<'a> Opt<'a> {
     pub fn new<T: Into<Cow<'a, [u8]>>>(code: u16, value: T) -> Opt<'a> {
-        let value = value.into();
-
         Opt {
             code,
-            len: value.len() as u16,
-            pen: None,
-            value,
+            value: value.into(),
         }
+    }
+
+    pub fn custom<T: ByteOrder, V: AsRef<[u8]>>(
+        code: u16,
+        private_enterprise_number: u32,
+        value: V,
+    ) -> Opt<'a> {
+        let mut buf = vec![];
+
+        buf.write_u32::<T>(private_enterprise_number).unwrap();
+        buf.write_all(value.as_ref()).unwrap();
+
+        Opt::new(code, buf)
     }
 
     pub fn from_iter<T: IntoIterator<Item = u8>>(code: u16, iter: T) -> Self {
         let value = iter.into_iter().collect::<Vec<u8>>();
 
-        Opt {
-            code,
-            len: value.len() as u16,
-            pen: None,
-            value: value.into(),
-        }
+        Opt::new(code, value)
     }
 
     pub fn u64<T: ByteOrder>(code: u16, value: u64) -> Opt<'a> {
@@ -236,37 +213,12 @@ impl<'a> Opt<'a> {
         Opt::new(code, buf)
     }
 
-    pub fn custom<T: AsRef<[u8]> + ?Sized>(
-        code: u16,
-        private_enterprise_number: u32,
-        value: &'a T,
-    ) -> Opt<'a> {
-        let buf = value.as_ref();
-
-        Opt {
-            code,
-            len: (mem::size_of::<u32>() + buf.len()) as u16,
-            pen: Some(private_enterprise_number),
-            value: buf.into(),
-        }
-    }
-
     pub fn size(&self) -> usize {
-        mem::size_of::<u16>() * 2
-            + self.pen.map_or(0, |_| mem::size_of::<u32>())
-            + pad_to::<u32>(self.value.len())
+        mem::size_of::<u16>() * 2 + pad_to::<u32>(self.value.len())
     }
 
     pub fn parse(buf: &'a [u8], endianness: Endianness) -> Result<(&[u8], Self)> {
         parse_opt(buf, endianness).map_err(|err| PcapError::from(err).into())
-    }
-
-    pub fn value(&self) -> &[u8] {
-        if self.len as usize <= self.value.len() {
-            &self.value[..self.len as usize]
-        } else {
-            &self.value
-        }
     }
 
     pub fn as_str(&self) -> Option<&str> {
@@ -279,42 +231,48 @@ impl<'a> Opt<'a> {
 
     pub fn as_comment(&self) -> Option<&str> {
         if self.code == OPT_COMMENT {
-            str::from_utf8(self.value()).ok()
+            str::from_utf8(&self.value).ok()
         } else {
             None
         }
     }
 
-    pub fn as_custom_str(&self) -> Option<(u32, &str)> {
-        if self.code == OPT_CUSTOM_STR {
-            str::from_utf8(self.value())
+    pub fn as_custom_str<T: ByteOrder>(&self) -> Option<(u32, &str)> {
+        if self.code == OPT_CUSTOM_STR && self.value.len() > mem::size_of::<u32>() {
+            str::from_utf8(&self.value[mem::size_of::<u32>()..])
                 .ok()
-                .and_then(|s| self.pen.map(|pen| (pen, s)))
+                .map(|s| (T::read_u32(&self.value), s))
         } else {
             None
         }
     }
 
-    pub fn as_custom_bytes(&self) -> Option<(u32, &[u8])> {
-        if self.code == OPT_CUSTOM_BYTES {
-            self.pen.map(|pen| (pen, self.value()))
+    pub fn as_custom_bytes<T: ByteOrder>(&self) -> Option<(u32, &[u8])> {
+        if self.code == OPT_CUSTOM_BYTES && self.value.len() > mem::size_of::<u32>() {
+            Some((
+                T::read_u32(&self.value),
+                &self.value[mem::size_of::<u32>()..],
+            ))
         } else {
             None
         }
     }
 
-    pub fn as_custom_private_str(&self) -> Option<(u32, &str)> {
-        if self.code == OPT_CUSTOM_PRIVATE_STR {
-            str::from_utf8(self.value())
+    pub fn as_custom_private_str<T: ByteOrder>(&self) -> Option<(u32, &str)> {
+        if self.code == OPT_CUSTOM_PRIVATE_STR && self.value.len() > mem::size_of::<u32>() {
+            str::from_utf8(&self.value[mem::size_of::<u32>()..])
                 .ok()
-                .and_then(|s| self.pen.map(|pen| (pen, s)))
+                .map(|s| (T::read_u32(&self.value), s))
         } else {
             None
         }
     }
-    pub fn as_custom_private_bytes(&self) -> Option<(u32, &[u8])> {
-        if self.code == OPT_CUSTOM_PRIVATE_BYTES {
-            self.pen.map(|pen| (pen, self.value()))
+    pub fn as_custom_private_bytes<T: ByteOrder>(&self) -> Option<(u32, &[u8])> {
+        if self.code == OPT_CUSTOM_PRIVATE_BYTES && self.value.len() > mem::size_of::<u32>() {
+            Some((
+                T::read_u32(&self.value),
+                &self.value[mem::size_of::<u32>()..],
+            ))
         } else {
             None
         }
@@ -372,18 +330,10 @@ named_args!(pub parse_options<'a>(endianness: Endianness)<&'a [u8], Options<'a>>
 named_args!(parse_opt(endianness: Endianness)<Opt>,
     do_parse!(
         code: u16!(endianness) >>
-        opt_len: u16!(endianness) >>
-        pen: switch!(value!(code),
-            OPT_CUSTOM_STR              => map!(u32!(endianness), Some) |
-            OPT_CUSTOM_BYTES            => map!(u32!(endianness), Some) |
-            OPT_CUSTOM_PRIVATE_STR      => map!(u32!(endianness), Some) |
-            OPT_CUSTOM_PRIVATE_BYTES    => map!(u32!(endianness), Some) |
-            _                           => value!(None)
-        ) >>
-        val_len: value!(opt_len as usize - pen.map_or(0, |_| mem::size_of::<u32>())) >>
-        value: map!(map!(take!(pad_to::<u32>(val_len)), |s| &s[..val_len]), Cow::from) >>
+        len: u16!(endianness) >>
+        value: map!(map!(take!(pad_to::<u32>(len as usize)), |s| &s[..len as usize]), Cow::from) >>
         (
-            Opt { code, len: opt_len as u16, pen, value }
+            Opt { code, value }
         )
     )
 );
@@ -406,17 +356,17 @@ mod tests {
         assert_eq!(end_of_opt().size(), 4);
         assert_eq!(comment("test").size(), 8);
         assert_eq!(comment("foo").size(), 8);
-        assert_eq!(custom_str(123, "test").size(), 12);
-        assert_eq!(custom_bytes(123, b"foo").size(), 12);
-        assert_eq!(custom_private_str(123, "test").size(), 12);
-        assert_eq!(custom_private_bytes(123, b"foo").size(), 12);
+        assert_eq!(custom_str::<LittleEndian>(123, "test").size(), 12);
+        assert_eq!(custom_bytes::<LittleEndian>(123, b"foo").size(), 12);
+        assert_eq!(custom_private_str::<LittleEndian>(123, "test").size(), 12);
+        assert_eq!(custom_private_bytes::<LittleEndian>(123, b"foo").size(), 12);
     }
 
     lazy_static! {
         static ref OPTIONS: Vec<Opt<'static>> = vec![
             shb_os("Windows XP"),
             shb_userappl("Test004.exe"),
-            custom_str(123, "github.com"),
+            custom_str::<LittleEndian>(123, "github.com"),
             comment("foo"),
             opt(123, "bar"),
         ];

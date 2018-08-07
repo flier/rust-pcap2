@@ -100,23 +100,23 @@ impl<'a> EnhancedPacket<'a> {
     pub fn flags<T: ByteOrder>(&self) -> Option<Flags> {
         self.options
             .iter()
-            .find(|opt| opt.code == EPB_FLAGS && opt.len as usize == mem::size_of::<u32>())
-            .map(|opt| Flags::from_bits_truncate(T::read_u32(opt.value())))
+            .find(|opt| opt.code == EPB_FLAGS && opt.value.len() == mem::size_of::<u32>())
+            .map(|opt| Flags::from_bits_truncate(T::read_u32(&opt.value)))
     }
 
     pub fn hash(&self) -> Vec<(u8, &[u8])> {
         self.options
             .iter()
-            .filter(|opt| opt.code == EPB_HASH && opt.len > 0)
-            .map(|opt| (opt.value()[0], &opt.value()[1..]))
+            .filter(|opt| opt.code == EPB_HASH && opt.value.len() > 0)
+            .map(|opt| (opt.value[0], &opt.value[1..]))
             .collect()
     }
 
     pub fn dropcount<T: ByteOrder>(&self) -> Option<u64> {
         self.options
             .iter()
-            .find(|opt| opt.code == EPB_DROPCOUNT && opt.len as usize == mem::size_of::<u64>())
-            .map(|opt| T::read_u64(opt.value()))
+            .find(|opt| opt.code == EPB_DROPCOUNT && opt.value.len() == mem::size_of::<u64>())
+            .map(|opt| T::read_u64(&opt.value))
     }
 }
 
