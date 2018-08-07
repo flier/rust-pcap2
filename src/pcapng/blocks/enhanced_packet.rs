@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::io::Write;
-use std::iter::once;
 use std::mem;
 
 use byteorder::{ByteOrder, WriteBytesExt};
@@ -52,10 +51,11 @@ pub const HASH_ALGO_SHA1: u8 = 4;
 
 /// This option contains a hash of the packet.
 pub fn epb_hash<'a, T: AsRef<[u8]>>(algorithm: u8, hash: T) -> Opt<'a> {
-    Opt::from_iter(
-        EPB_HASH,
-        once(algorithm).chain(hash.as_ref().iter().cloned()),
-    )
+    let mut buf = vec![algorithm];
+
+    buf.write_all(hash.as_ref()).unwrap();
+
+    Opt::new(EPB_HASH, buf)
 }
 
 /// This option is a 64-bit integer value specifying the number of packets lost

@@ -37,40 +37,34 @@ pub fn if_description<T: AsRef<str> + ?Sized>(value: &T) -> Opt {
 
 /// This option s an IPv4 network address and corresponding netmask for the interface.
 pub fn if_ipv4addr<'a, T: Into<Ipv4Addr>>(addr: T, mask: T) -> Opt<'a> {
-    Opt::from_iter(
-        IF_IPV4ADDR,
-        addr.into()
-            .octets()
-            .into_iter()
-            .chain(mask.into().octets().into_iter())
-            .cloned(),
-    )
+    let mut buf = addr.into().octets().to_vec();
+
+    buf.write_all(&mask.into().octets()[..]).unwrap();
+
+    Opt::new(IF_IPV4ADDR, buf)
 }
 
 /// This option is an IPv6 network address and corresponding prefix length for the interface.
 pub fn if_ipv6addr<'a, T: Into<Ipv6Addr>>(addr: T, prefix: u8) -> Opt<'a> {
-    Opt::from_iter(
-        IF_IPV6ADDR,
-        addr.into()
-            .octets()
-            .into_iter()
-            .chain([prefix].into_iter())
-            .cloned(),
-    )
+    let mut buf = addr.into().octets().to_vec();
+
+    buf.push(prefix);
+
+    Opt::new(IF_IPV6ADDR, buf)
 }
 
 pub type MacAddr = [u8; 6];
 
 /// This option is the Interface Hardware MAC address (48 bits), if available.
 pub fn if_macaddr<'a>(addr: MacAddr) -> Opt<'a> {
-    Opt::from_iter(IF_MACADDR, addr.into_iter().cloned())
+    Opt::new(IF_MACADDR, addr.to_vec())
 }
 
 pub type EuiAddr = [u8; 8];
 
 /// This option is the Interface Hardware EUI address (64 bits), if available.
 pub fn if_euiaddr<'a>(addr: EuiAddr) -> Opt<'a> {
-    Opt::from_iter(IF_EUIADDR, addr.into_iter().cloned())
+    Opt::new(IF_EUIADDR, addr.to_vec())
 }
 
 /// This option is a 64-bit number for the Interface speed (in bits per second).

@@ -191,12 +191,6 @@ impl<'a> Opt<'a> {
         Opt::new(code, buf)
     }
 
-    pub fn from_iter<T: IntoIterator<Item = u8>>(code: u16, iter: T) -> Self {
-        let value = iter.into_iter().collect::<Vec<u8>>();
-
-        Opt::new(code, value)
-    }
-
     pub fn u64<T: ByteOrder>(code: u16, value: u64) -> Opt<'a> {
         let mut buf = vec![0; mem::size_of::<u64>()];
 
