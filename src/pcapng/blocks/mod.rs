@@ -1,11 +1,11 @@
-mod enhanced_packet;
-mod interface_description;
-mod interface_statistics;
-mod name_resolution;
-mod obsoleted_packet;
-mod section_header;
-mod simple_packet;
-mod timestamp;
+pub mod enhanced_packet;
+pub mod interface_description;
+pub mod interface_statistics;
+pub mod name_resolution;
+pub mod obsoleted_packet;
+pub mod section_header;
+pub mod simple_packet;
+pub mod timestamp;
 
 pub use self::enhanced_packet::{
     epb_dropcount, epb_flags, epb_hash, EnhancedPacket, HASH_ALGO_2S_COMPLEMENT, HASH_ALGO_CRC32,
