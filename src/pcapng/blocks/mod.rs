@@ -1,6 +1,7 @@
 mod enhanced_packet;
 mod interface_description;
 mod section_header;
+mod simple_packet;
 
 pub use self::enhanced_packet::{
     epb_dropcount, epb_flags, epb_hash, EnhancedPacket, HASH_ALGO_2S_COMPLEMENT, HASH_ALGO_CRC32,
@@ -11,3 +12,4 @@ pub use self::interface_description::{
     if_name, if_os, if_speed, if_tsoffset, if_tsresol, if_tzone, InterfaceDescription,
 };
 pub use self::section_header::{shb_hardware, shb_os, shb_userappl, SectionHeader};
+pub use self::simple_packet::SimplePacket;
