@@ -6,6 +6,7 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
+use pcapng::blocks::timestamp::{self, Timestamp, WriteTimestamp};
 use pcapng::options::{pad_to, parse_options, Opt, Options, WriteOptions};
 use pcapng::Block;
 
@@ -70,7 +71,7 @@ pub struct EnhancedPacket<'a> {
     /// the interface this packet comes from
     pub interface_id: u32,
     /// the number of units of time that have elapsed since 1970-01-01 00:00:00 UTC.
-    pub timestamp: u64,
+    pub timestamp: Timestamp,
     /// number of octets captured from the packet.
     pub captured_len: u32,
     /// actual length of the packet when it was transmitted on the network.
@@ -88,7 +89,9 @@ impl<'a> EnhancedPacket<'a> {
 
     pub fn size(&self) -> usize {
         self.options.iter().fold(
-            mem::size_of::<u32>() * 3 + mem::size_of::<u64>() + pad_to::<u32>(self.data.len()),
+            mem::size_of::<u32>() * 3
+                + mem::size_of::<Timestamp>()
+                + pad_to::<u32>(self.data.len()),
             |size, opt| size + opt.size(),
         )
     }
@@ -160,7 +163,7 @@ named_args!(parse_enhanced_packet(endianness: Endianness)<EnhancedPacket>,
         (
             EnhancedPacket {
                 interface_id,
-                timestamp: (u64::from(timestamp_hi ) << 32) + u64::from(timestamp_lo),
+                timestamp: timestamp::new(timestamp_hi, timestamp_lo),
                 captured_len,
                 original_len,
                 data: Cow::from(&data[..captured_len as usize]),
@@ -183,8 +186,7 @@ impl<W: Write + ?Sized> WriteEnhancedPacket for W {
         packet: &EnhancedPacket<'a>,
     ) -> Result<usize> {
         self.write_u32::<T>(packet.interface_id)?;
-        self.write_u32::<T>((packet.timestamp >> 32) as u32)?;
-        self.write_u32::<T>(packet.timestamp as u32)?;
+        self.write_timestamp::<T>(packet.timestamp)?;
         self.write_u32::<T>(packet.captured_len)?;
         self.write_u32::<T>(packet.original_len)?;
         self.write_all(&packet.data)?;
@@ -271,7 +273,8 @@ mod tests {
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = buf.write_enhanced_packet::<LittleEndian>(&ENHANCED_PACKET.clone())
+        let wrote = buf
+            .write_enhanced_packet::<LittleEndian>(&ENHANCED_PACKET.clone())
             .unwrap();
 
         assert_eq!(wrote, ENHANCED_PACKET.size());
