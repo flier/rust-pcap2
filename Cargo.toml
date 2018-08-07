@@ -24,6 +24,7 @@ keywords = [
 [dependencies]
 log = "0.4"
 failure = "0.1"
+bitflags = "1.0"
 lazy_static = "1.0"
 num-traits = "0.2"
 num-derive = "0.2"

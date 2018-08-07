@@ -3,6 +3,8 @@ extern crate log;
 #[macro_use]
 extern crate failure;
 #[macro_use]
+extern crate bitflags;
+#[macro_use]
 extern crate lazy_static;
 extern crate num_traits;
 #[macro_use]
