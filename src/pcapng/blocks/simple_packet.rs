@@ -7,8 +7,9 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
+use pcapng::block::Block;
 use pcapng::options::pad_to;
-use pcapng::Block;
+use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0000_0003;
 
@@ -64,24 +65,16 @@ named_args!(parse_simple_packet(endianness: Endianness)<SimplePacket>,
     ))
 );
 
-pub trait WriteSimplePacket {
-    fn write_simple_packet<'a, T: ByteOrder>(&mut self, packet: &SimplePacket<'a>)
-        -> Result<usize>;
-}
-
-impl<W: Write + ?Sized> WriteSimplePacket for W {
-    fn write_simple_packet<'a, T: ByteOrder>(
-        &mut self,
-        packet: &SimplePacket<'a>,
-    ) -> Result<usize> {
-        self.write_u32::<T>(packet.original_len)?;
-        self.write_all(&packet.data)?;
-        let padded_len = pad_to::<u32>(packet.data.len()) - packet.data.len();
+impl<'a> WriteTo for SimplePacket<'a> {
+    fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize> {
+        w.write_u32::<T>(self.original_len)?;
+        w.write_all(&self.data)?;
+        let padded_len = pad_to::<u32>(self.data.len()) - self.data.len();
         if padded_len > 0 {
-            self.write_all(&vec![0; padded_len])?;
+            w.write_all(&vec![0; padded_len])?;
         }
 
-        Ok(packet.size())
+        Ok(self.size())
     }
 }
 
@@ -151,9 +144,7 @@ mod tests {
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = buf
-            .write_simple_packet::<LittleEndian>(&SIMPLE_PACKET.clone())
-            .unwrap();
+        let wrote = SIMPLE_PACKET.write_to::<LittleEndian, _>(&mut buf).unwrap();
 
         assert_eq!(wrote, SIMPLE_PACKET.size());
         assert_eq!(

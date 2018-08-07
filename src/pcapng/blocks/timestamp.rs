@@ -4,6 +4,7 @@ use std::mem;
 use byteorder::{ByteOrder, ReadBytesExt, WriteBytesExt};
 
 use errors::Result;
+use traits::WriteTo;
 
 pub type Timestamp = u64;
 
@@ -32,14 +33,10 @@ impl<R: Read + ?Sized> ReadTimestamp for R {
     }
 }
 
-pub trait WriteTimestamp {
-    fn write_timestamp<T: ByteOrder>(&mut self, ts: Timestamp) -> Result<usize>;
-}
-
-impl<W: Write + ?Sized> WriteTimestamp for W {
-    fn write_timestamp<T: ByteOrder>(&mut self, ts: Timestamp) -> Result<usize> {
-        self.write_u32::<T>(hi(ts))?;
-        self.write_u32::<T>(lo(ts))?;
+impl WriteTo for Timestamp {
+    fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize> {
+        w.write_u32::<T>(hi(*self))?;
+        w.write_u32::<T>(lo(*self))?;
 
         Ok(mem::size_of::<u32>() * 2)
     }

@@ -5,9 +5,10 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
-use pcapng::blocks::timestamp::{self, ReadTimestamp, Timestamp, WriteTimestamp};
-use pcapng::options::{parse_options, Opt, Options, WriteOptions};
-use pcapng::Block;
+use pcapng::block::Block;
+use pcapng::blocks::timestamp::{self, ReadTimestamp, Timestamp};
+use pcapng::options::{parse_options, Opt, Options};
+use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0000_0005;
 
@@ -185,23 +186,13 @@ named_args!(parse_interface_statistics(endianness: Endianness)<InterfaceStatisti
     ))
 );
 
-pub trait WriteInterfaceStatistics {
-    fn write_interface_statistics<'a, T: ByteOrder>(
-        &mut self,
-        packet: &InterfaceStatistics<'a>,
-    ) -> Result<usize>;
-}
+impl<'a> WriteTo for InterfaceStatistics<'a> {
+    fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize> {
+        w.write_u32::<T>(self.interface_id)?;
+        self.timestamp.write_to::<T, _>(w)?;
+        self.options.write_to::<T, _>(w)?;
 
-impl<W: Write + ?Sized> WriteInterfaceStatistics for W {
-    fn write_interface_statistics<'a, T: ByteOrder>(
-        &mut self,
-        packet: &InterfaceStatistics<'a>,
-    ) -> Result<usize> {
-        self.write_u32::<T>(packet.interface_id)?;
-        self.write_timestamp::<T>(packet.timestamp)?;
-        self.write_options::<T, _>(&packet.options)?;
-
-        Ok(packet.size())
+        Ok(self.size())
     }
 }
 
@@ -278,8 +269,8 @@ mod tests {
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = buf
-            .write_interface_statistics::<LittleEndian>(&INTERFACE_STATISTICS.clone())
+        let wrote = INTERFACE_STATISTICS
+            .write_to::<LittleEndian, _>(&mut buf)
             .unwrap();
 
         assert_eq!(wrote, INTERFACE_STATISTICS.size());
@@ -307,7 +298,8 @@ mod tests {
 
         let mut buf = vec![];
 
-        buf.write_interface_statistics::<LittleEndian>(&interface_statistics)
+        interface_statistics
+            .write_to::<LittleEndian, _>(&mut buf)
             .unwrap();
 
         let (_, interface_statistics) =

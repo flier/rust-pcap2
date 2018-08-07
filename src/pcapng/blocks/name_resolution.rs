@@ -7,8 +7,9 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
-use pcapng::options::{opt, pad_to, parse_options, Opt, Options, WriteOptions};
-use pcapng::Block;
+use pcapng::block::Block;
+use pcapng::options::{opt, pad_to, parse_options, Opt, Options};
+use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0000_0004;
 
@@ -72,12 +73,14 @@ pub fn ns_dnsip6addr<'a, T: Into<Ipv6Addr>>(addr: T) -> Opt<'a> {
     Opt::new(NS_DNSIP6ADDR, addr.into().octets().to_vec())
 }
 
+pub type NameRecords<'a> = Vec<NameRecord<'a>>;
+
 /// The Name Resolution Block (NRB) is used to support the correlation of numeric addresses
 /// (present in the captured packets) and their corresponding canonical names and it is optional.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NameResolution<'a> {
     /// contains an association between a network address and a name.
-    pub records: Vec<NameRecord<'a>>,
+    pub records: NameRecords<'a>,
     /// optionally, a list of options
     pub options: Options<'a>,
 }
@@ -204,18 +207,13 @@ named_args!(parse_name_record(endianness: Endianness)<NameRecord>,
     )
 );
 
-pub trait WriteNameRecords {
-    fn write_name_record<'a, T: ByteOrder>(&mut self, record: &NameRecord<'a>) -> Result<usize>;
-
-    fn write_name_records<'a, T: ByteOrder, I: IntoIterator<Item = &'a NameRecord<'a>>>(
-        &mut self,
-        records: I,
-    ) -> Result<usize> {
+impl<'a> WriteTo for NameRecords<'a> {
+    fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize> {
         let mut wrote = 0;
         let mut found_end_of_record = false;
 
-        for record in records {
-            wrote += self.write_name_record::<T>(&record)?;
+        for record in self {
+            wrote += record.write_to::<T, _>(w)?;
 
             if record.is_record_end() {
                 found_end_of_record = true;
@@ -224,44 +222,34 @@ pub trait WriteNameRecords {
         }
 
         if !found_end_of_record {
-            wrote += self.write_name_record::<T>(&nrb_record_end())?;
+            wrote += nrb_record_end().write_to::<T, _>(w)?;
         }
 
         Ok(wrote)
     }
 }
 
-impl<W: Write + ?Sized> WriteNameRecords for W {
-    fn write_name_record<'a, T: ByteOrder>(&mut self, record: &NameRecord<'a>) -> Result<usize> {
-        self.write_u16::<T>(record.code)?;
-        self.write_u16::<T>(record.value.len() as u16)?;
-        self.write_all(&record.value)?;
+impl<'a> WriteTo for NameRecord<'a> {
+    fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize> {
+        w.write_u16::<T>(self.code)?;
+        w.write_u16::<T>(self.value.len() as u16)?;
+        w.write_all(&self.value)?;
 
-        let padded_len = pad_to::<u32>(record.value.len()) - record.value.len();
+        let padded_len = pad_to::<u32>(self.value.len()) - self.value.len();
         if padded_len > 0 {
-            self.write_all(&vec![0; padded_len])?;
+            w.write_all(&vec![0; padded_len])?;
         }
 
-        Ok(record.size())
+        Ok(self.size())
     }
 }
 
-pub trait WriteNameResolution {
-    fn write_name_resolution<'a, T: ByteOrder>(
-        &mut self,
-        name_resolution: &NameResolution<'a>,
-    ) -> Result<usize>;
-}
+impl<'a> WriteTo for NameResolution<'a> {
+    fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize> {
+        self.records.write_to::<T, _>(w)?;
+        self.options.write_to::<T, _>(w)?;
 
-impl<W: Write + ?Sized> WriteNameResolution for W {
-    fn write_name_resolution<'a, T: ByteOrder>(
-        &mut self,
-        name_resolution: &NameResolution<'a>,
-    ) -> Result<usize> {
-        self.write_name_records::<T, _>(&name_resolution.records)?;
-        self.write_options::<T, _>(&name_resolution.options)?;
-
-        Ok(name_resolution.size())
+        Ok(self.size())
     }
 }
 
@@ -333,8 +321,8 @@ mod tests {
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = buf
-            .write_name_resolution::<LittleEndian>(&NAME_RESOLUTION.clone())
+        let wrote = NAME_RESOLUTION
+            .write_to::<LittleEndian, _>(&mut buf)
             .unwrap();
 
         assert_eq!(wrote, NAME_RESOLUTION.size());

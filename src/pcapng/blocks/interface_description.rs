@@ -6,8 +6,9 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
-use pcapng::options::{opt, parse_options, Opt, Options, WriteOptions};
-use pcapng::Block;
+use pcapng::block::Block;
+use pcapng::options::{opt, parse_options, Opt, Options};
+use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0000_0001;
 
@@ -283,24 +284,14 @@ named_args!(parse_interface_description(endianness: Endianness)<InterfaceDescrip
     )
 );
 
-pub trait WriteInterfaceDescription {
-    fn write_interface_description<'a, T: ByteOrder>(
-        &mut self,
-        interface_description: &InterfaceDescription<'a>,
-    ) -> Result<usize>;
-}
+impl<'a> WriteTo for InterfaceDescription<'a> {
+    fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize> {
+        w.write_u16::<T>(self.link_type)?;
+        w.write_u16::<T>(self.reserved)?;
+        w.write_u32::<T>(self.snap_len)?;
+        self.options.write_to::<T, _>(w)?;
 
-impl<W: Write + ?Sized> WriteInterfaceDescription for W {
-    fn write_interface_description<'a, T: ByteOrder>(
-        &mut self,
-        interface_description: &InterfaceDescription<'a>,
-    ) -> Result<usize> {
-        self.write_u16::<T>(interface_description.link_type)?;
-        self.write_u16::<T>(interface_description.reserved)?;
-        self.write_u32::<T>(interface_description.snap_len)?;
-        self.write_options::<T, _>(&interface_description.options)?;
-
-        Ok(interface_description.size())
+        Ok(self.size())
     }
 }
 
@@ -376,8 +367,8 @@ mod tests {
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = buf
-            .write_interface_description::<LittleEndian>(&INTERFACE_DESCRIPTION.clone())
+        let wrote = INTERFACE_DESCRIPTION
+            .write_to::<LittleEndian, _>(&mut buf)
             .unwrap();
 
         assert_eq!(wrote, INTERFACE_DESCRIPTION.size());
@@ -412,7 +403,8 @@ mod tests {
 
         let mut buf = vec![];
 
-        buf.write_interface_description::<LittleEndian>(&interface_description)
+        interface_description
+            .write_to::<LittleEndian, _>(&mut buf)
             .unwrap();
 
         let (_, interface_description) =

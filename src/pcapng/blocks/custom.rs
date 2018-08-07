@@ -6,8 +6,9 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
-use pcapng::options::{pad_to, Options, WriteOptions};
-use pcapng::Block;
+use pcapng::block::Block;
+use pcapng::options::{pad_to, Options};
+use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0000_0BAD;
 pub const PRIVATE_BLOCK_TYPE: u32 = 0x4000_0BAD;
@@ -75,21 +76,17 @@ named_args!(parse_custom_block(endianness: Endianness)<CustomBlock>,
     ))
 );
 
-pub trait WriteCustomBlock {
-    fn write_custom_block<'a, T: ByteOrder>(&mut self, packet: &CustomBlock<'a>) -> Result<usize>;
-}
-
-impl<W: Write + ?Sized> WriteCustomBlock for W {
-    fn write_custom_block<'a, T: ByteOrder>(&mut self, custom: &CustomBlock<'a>) -> Result<usize> {
-        self.write_u32::<T>(custom.private_enterprise_number)?;
-        self.write_all(&custom.data)?;
-        let padded_len = pad_to::<u32>(custom.data.len()) - custom.data.len();
+impl<'a> WriteTo for CustomBlock<'a> {
+    fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize> {
+        w.write_u32::<T>(self.private_enterprise_number)?;
+        w.write_all(&self.data)?;
+        let padded_len = pad_to::<u32>(self.data.len()) - self.data.len();
         if padded_len > 0 {
-            self.write_all(&vec![0; padded_len])?;
+            w.write_all(&vec![0; padded_len])?;
         }
-        self.write_options::<T, _>(&custom.options)?;
+        self.options.write_to::<T, _>(w)?;
 
-        Ok(custom.size())
+        Ok(self.size())
     }
 }
 
@@ -150,9 +147,7 @@ hello world\x00\
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = buf
-            .write_custom_block::<LittleEndian>(&CUSTOM_BLOCK.clone())
-            .unwrap();
+        let wrote = CUSTOM_BLOCK.write_to::<LittleEndian, _>(&mut buf).unwrap();
 
         assert_eq!(wrote, CUSTOM_BLOCK.size());
         assert_eq!(

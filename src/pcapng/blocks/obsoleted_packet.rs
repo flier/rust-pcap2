@@ -9,10 +9,11 @@ pub use super::enhanced_packet::{
     epb_flags as pack_flags, epb_hash as pack_hash, Flags, EPB_FLAGS as PACK_FLAGS,
     EPB_HASH as PACK_HASH,
 };
-use super::timestamp::{self, Timestamp, WriteTimestamp};
+use super::timestamp::{self, Timestamp};
 use errors::{PcapError, Result};
-use pcapng::options::{pad_to, parse_options, Options, WriteOptions};
-use pcapng::Block;
+use pcapng::block::Block;
+use pcapng::options::{pad_to, parse_options, Options};
+use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0000_0002;
 
@@ -122,31 +123,21 @@ named_args!(parse_obsoleted_packet(endianness: Endianness)<ObsoletedPacket>,
     ))
 );
 
-pub trait WriteObsoletedPacket {
-    fn write_obsoleted_packet<'a, T: ByteOrder>(
-        &mut self,
-        packet: &ObsoletedPacket<'a>,
-    ) -> Result<usize>;
-}
-
-impl<W: Write + ?Sized> WriteObsoletedPacket for W {
-    fn write_obsoleted_packet<'a, T: ByteOrder>(
-        &mut self,
-        packet: &ObsoletedPacket<'a>,
-    ) -> Result<usize> {
-        self.write_u16::<T>(packet.interface_id)?;
-        self.write_u16::<T>(packet.drops_count.unwrap_or(0xFFFF))?;
-        self.write_timestamp::<T>(packet.timestamp)?;
-        self.write_u32::<T>(packet.captured_len)?;
-        self.write_u32::<T>(packet.original_len)?;
-        self.write_all(&packet.data)?;
-        let padded_len = pad_to::<u32>(packet.data.len()) - packet.data.len();
+impl<'a> WriteTo for ObsoletedPacket<'a> {
+    fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize> {
+        w.write_u16::<T>(self.interface_id)?;
+        w.write_u16::<T>(self.drops_count.unwrap_or(0xFFFF))?;
+        self.timestamp.write_to::<T, _>(w)?;
+        w.write_u32::<T>(self.captured_len)?;
+        w.write_u32::<T>(self.original_len)?;
+        w.write_all(&self.data)?;
+        let padded_len = pad_to::<u32>(self.data.len()) - self.data.len();
         if padded_len > 0 {
-            self.write_all(&vec![0; padded_len])?;
+            w.write_all(&vec![0; padded_len])?;
         }
-        self.write_options::<T, _>(&packet.options)?;
+        self.options.write_to::<T, _>(w)?;
 
-        Ok(packet.size())
+        Ok(self.size())
     }
 }
 
@@ -225,8 +216,8 @@ mod tests {
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = buf
-            .write_obsoleted_packet::<LittleEndian>(&ENHANCED_PACKET.clone())
+        let wrote = ENHANCED_PACKET
+            .write_to::<LittleEndian, _>(&mut buf)
             .unwrap();
 
         assert_eq!(wrote, ENHANCED_PACKET.size());
@@ -260,7 +251,7 @@ mod tests {
 
         let mut buf = vec![];
 
-        buf.write_obsoleted_packet::<LittleEndian>(&packet).unwrap();
+        assert_eq!(packet.write_to::<LittleEndian, _>(&mut buf).unwrap(), 64);
 
         let (_, packet) = ObsoletedPacket::parse(&buf, Endianness::Little).unwrap();
 

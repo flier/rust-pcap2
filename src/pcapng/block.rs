@@ -7,6 +7,7 @@ use nom::*;
 
 use errors::{PcapError, Result};
 use pcapng::options::pad_to;
+use traits::WriteTo;
 
 pub const MIN_BLOCK_SIZE: u32 = (mem::size_of::<u32>() * 3) as u32;
 pub const MAX_BLOCK_SIZE: u32 = 16 * 1024 * 1024;
@@ -63,33 +64,30 @@ named_args!(parse_block(endianness: Endianness)<Block>,
     ))
 );
 
-pub trait WriteBlock {
-    fn write_block<'a, T: ByteOrder>(&mut self, block: Block<'a>) -> Result<usize>;
-}
+impl<'a> WriteTo for Block<'a> {
+    fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize> {
+        w.write_u32::<T>(self.ty)?;
 
-impl<W: Write + ?Sized> WriteBlock for W {
-    fn write_block<'a, T: ByteOrder>(&mut self, block: Block<'a>) -> Result<usize> {
-        self.write_u32::<T>(block.ty)?;
-
-        let body_len = pad_to::<u32>(block.body.len());
+        let body_len = pad_to::<u32>(self.body.len());
         let block_len = MIN_BLOCK_SIZE as usize + body_len;
 
-        self.write_u32::<T>(block_len as u32)?;
-        self.write_all(&block.body)?;
+        w.write_u32::<T>(block_len as u32)?;
+        w.write_all(&self.body)?;
 
-        let padded_len = body_len - block.body.len();
+        let padded_len = body_len - self.body.len();
         if padded_len > 0 {
-            self.write_all(&vec![0; padded_len])?;
+            w.write_all(&vec![0; padded_len])?;
         }
 
-        self.write_u32::<T>(block_len as u32)?;
+        w.write_u32::<T>(block_len as u32)?;
 
-        Ok(block.size())
+        Ok(self.size())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use byteorder::LittleEndian;
     use nom;
 
     use super::*;
@@ -98,6 +96,33 @@ mod tests {
     pub fn test_layout() {
         assert_eq!(Block::new(0, b"").size(), 12);
         assert_eq!(Block::new(0, b"test").size(), 16);
+    }
+
+    #[test]
+    pub fn test_parse() {
+        assert_eq!(
+            parse_block(
+                b"\x01\x00\x00\x00\x0c\x00\x00\x00\x0c\x00\x00\x00",
+                Endianness::Little
+            ).unwrap(),
+            (&[][..], Block::new(1, b""))
+        );
+    }
+
+    #[test]
+    pub fn test_write() {
+        let mut buf = vec![];
+
+        assert_eq!(
+            Block::new(1, b"foo")
+                .write_to::<LittleEndian, _>(&mut buf)
+                .unwrap(),
+            16
+        );
+        assert_eq!(
+            buf.as_slice(),
+            b"\x01\x00\x00\x00\x10\x00\x00\x00foo\x00\x10\x00\x00\x00"
+        );
     }
 
     #[test]
@@ -129,13 +154,6 @@ mod tests {
                 &b"\x0a\x00\x00\x00"[..],
                 nom::ErrorKind::Verify
             ))
-        );
-        assert_eq!(
-            parse_block(
-                b"\x01\x00\x00\x00\x0c\x00\x00\x00\x0c\x00\x00\x00",
-                Endianness::Little
-            ).unwrap(),
-            (&[][..], Block::new(1, b""))
         );
     }
 }

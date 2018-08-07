@@ -6,8 +6,9 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
-use pcapng::options::{opt, parse_options, Opt, Options, WriteOptions};
-use pcapng::Block;
+use pcapng::block::Block;
+use pcapng::options::{opt, parse_options, Opt, Options};
+use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0A0D_0D0A;
 
@@ -145,25 +146,15 @@ named_args!(parse_section_header(endianness: Endianness)<SectionHeader>,
     )
 );
 
-pub trait WriteSectionHeader {
-    fn write_section_header<'a, T: ByteOrder>(
-        &mut self,
-        section_header: &SectionHeader<'a>,
-    ) -> Result<usize>;
-}
+impl<'a> WriteTo for SectionHeader<'a> {
+    fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize> {
+        w.write_u32::<T>(self.magic)?;
+        w.write_u16::<T>(self.major_version)?;
+        w.write_u16::<T>(self.minor_version)?;
+        w.write_i64::<T>(self.section_length.unwrap_or(-1))?;
+        self.options.write_to::<T, _>(w)?;
 
-impl<W: Write + ?Sized> WriteSectionHeader for W {
-    fn write_section_header<'a, T: ByteOrder>(
-        &mut self,
-        section_header: &SectionHeader<'a>,
-    ) -> Result<usize> {
-        self.write_u32::<T>(section_header.magic)?;
-        self.write_u16::<T>(section_header.major_version)?;
-        self.write_u16::<T>(section_header.minor_version)?;
-        self.write_i64::<T>(section_header.section_length.unwrap_or(-1))?;
-        self.write_options::<T, _>(&section_header.options)?;
-
-        Ok(section_header.size())
+        Ok(self.size())
     }
 }
 
@@ -232,8 +223,8 @@ mod tests {
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = buf
-            .write_section_header::<LittleEndian>(&SECTION_HEADER.clone())
+        let wrote = SECTION_HEADER
+            .write_to::<LittleEndian, _>(&mut buf)
             .unwrap();
 
         assert_eq!(wrote, SECTION_HEADER.size());

@@ -8,6 +8,7 @@ use failure::Error;
 use nom::*;
 
 use errors::{PcapError, Result};
+use traits::WriteTo;
 
 /// This option delimits the end of the optional fields.
 pub const OPT_ENDOFOPT: u16 = 0;
@@ -92,18 +93,13 @@ impl<'a, R: Read> ReadOptions<'a> for BufReader<R> {
     }
 }
 
-pub trait WriteOptions {
-    fn write_option<'a, T: ByteOrder>(&mut self, opt: &Opt<'a>) -> Result<usize>;
-
-    fn write_options<'a, T: ByteOrder, I: IntoIterator<Item = &'a Opt<'a>>>(
-        &mut self,
-        options: I,
-    ) -> Result<usize> {
+impl<'a> WriteTo for Options<'a> {
+    fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize> {
         let mut wrote = 0;
         let mut found_end_of_opt = false;
 
-        for opt in options {
-            wrote += self.write_option::<T>(&opt)?;
+        for opt in self {
+            wrote += opt.write_to::<T, W>(w)?;
 
             if opt.is_end_of_opt() {
                 found_end_of_opt = true;
@@ -112,25 +108,25 @@ pub trait WriteOptions {
         }
 
         if wrote > 0 && !found_end_of_opt {
-            wrote += self.write_option::<T>(&end_of_opt())?;
+            wrote += end_of_opt().write_to::<T, W>(w)?;
         }
 
         Ok(wrote)
     }
 }
 
-impl<W: Write + ?Sized> WriteOptions for W {
-    fn write_option<'a, T: ByteOrder>(&mut self, opt: &Opt<'a>) -> Result<usize> {
-        self.write_u16::<T>(opt.code)?;
-        self.write_u16::<T>(opt.value.len() as u16)?;
-        self.write_all(&opt.value)?;
+impl<'a> WriteTo for Opt<'a> {
+    fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize> {
+        w.write_u16::<T>(self.code)?;
+        w.write_u16::<T>(self.value.len() as u16)?;
+        w.write_all(&self.value)?;
 
-        let padded_len = pad_to::<u32>(opt.value.len()) - opt.value.len();
+        let padded_len = pad_to::<u32>(self.value.len()) - self.value.len();
         if padded_len > 0 {
-            self.write_all(&vec![0; padded_len])?;
+            w.write_all(&vec![0; padded_len])?;
         }
 
-        Ok(opt.size())
+        Ok(self.size())
     }
 }
 
@@ -404,8 +400,7 @@ mod tests {
         let mut buf = vec![];
 
         assert_eq!(
-            buf.write_options::<LittleEndian, _>(OPTIONS.iter())
-                .unwrap(),
+            OPTIONS.write_to::<LittleEndian, _>(&mut buf).unwrap(),
             LE_OPTIONS.len()
         );
         assert_eq!(buf.as_slice(), &LE_OPTIONS[..]);
