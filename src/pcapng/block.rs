@@ -75,7 +75,7 @@ impl<W: Write + ?Sized> WriteBlock for W {
     fn write_block<'a, T: ByteOrder>(&mut self, block: Block<'a>) -> Result<usize> {
         self.write_u32::<T>(block.ty)?;
         self.write_u32::<T>(block.len)?;
-        self.write(&block.body)?;
+        self.write_all(&block.body)?;
         self.write_u32::<T>(block._len)?;
 
         Ok(block.size())

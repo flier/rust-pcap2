@@ -9,9 +9,9 @@ use errors::{PcapError, Result};
 use pcapng::options::{opt, parse_options, Opt, Options, WriteOptions};
 use pcapng::Block;
 
-pub const BLOCK_TYPE: u32 = 0x0A0D0D0A;
+pub const BLOCK_TYPE: u32 = 0x0A0D_0D0A;
 
-pub const MAGIC: u32 = 0x1A2B3C4D;
+pub const MAGIC: u32 = 0x1A2B_3C4D;
 
 pub const DEFAULT_MAJOR_VERSION: u16 = 1;
 pub const DEFAULT_MINOR_VERSION: u16 = 0;
@@ -26,17 +26,17 @@ pub const SHB_OS: u16 = 3;
 pub const SHB_USERAPPL: u16 = 4;
 
 /// the description of the hardware used to create this section.
-pub fn shb_hardware<'a, T: AsRef<str> + ?Sized>(value: &'a T) -> Opt<'a> {
+pub fn shb_hardware<T: AsRef<str> + ?Sized>(value: &T) -> Opt {
     opt(SHB_HARDWARE, value.as_ref())
 }
 
 /// the name of the operating system used to create this section.
-pub fn shb_os<'a, T: AsRef<str> + ?Sized>(value: &'a T) -> Opt<'a> {
+pub fn shb_os<T: AsRef<str> + ?Sized>(value: &T) -> Opt {
     opt(SHB_OS, value.as_ref())
 }
 
 /// the name of the application used to create this section.
-pub fn shb_userappl<'a, T: AsRef<str> + ?Sized>(value: &'a T) -> Opt<'a> {
+pub fn shb_userappl<T: AsRef<str> + ?Sized>(value: &T) -> Opt {
     opt(SHB_USERAPPL, value.as_ref())
 }
 

@@ -10,7 +10,7 @@ use errors::{PcapError, Result};
 use pcapng::options::{pad_to, parse_options, Opt, Options, WriteOptions};
 use pcapng::Block;
 
-pub const BLOCK_TYPE: u32 = 0x00000006;
+pub const BLOCK_TYPE: u32 = 0x0000_0006;
 
 pub const EPB_FLAGS: u16 = 2;
 pub const EPB_HASH: u16 = 3;
@@ -187,10 +187,10 @@ impl<W: Write + ?Sized> WriteEnhancedPacket for W {
         self.write_u32::<T>(packet.timestamp as u32)?;
         self.write_u32::<T>(packet.captured_len)?;
         self.write_u32::<T>(packet.original_len)?;
-        self.write(&packet.data)?;
+        self.write_all(&packet.data)?;
         let padded_len = pad_to::<u32>(packet.data.len()) - packet.data.len();
         if padded_len > 0 {
-            self.write(&vec![0; padded_len])?;
+            self.write_all(&vec![0; padded_len])?;
         }
         self.write_options::<T, _>(&packet.options)?;
 

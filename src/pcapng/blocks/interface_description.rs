@@ -9,7 +9,7 @@ use errors::{PcapError, Result};
 use pcapng::options::{opt, parse_options, Opt, Options, WriteOptions};
 use pcapng::Block;
 
-pub const BLOCK_TYPE: u32 = 0x00000001;
+pub const BLOCK_TYPE: u32 = 0x0000_0001;
 
 pub const IF_NAME: u16 = 2;
 pub const IF_DESCRIPTION: u16 = 3;
@@ -26,12 +26,12 @@ pub const IF_FCSLEN: u16 = 13;
 pub const IF_TSOFFSET: u16 = 14;
 
 /// This option is a UTF-8 string containing the name of the device used to capture data.
-pub fn if_name<'a, T: AsRef<str> + ?Sized>(value: &'a T) -> Opt<'a> {
+pub fn if_name<T: AsRef<str> + ?Sized>(value: &T) -> Opt {
     opt(IF_NAME, value.as_ref())
 }
 
 /// This option is a UTF-8 string containing the description of the device used to capture data.
-pub fn if_description<'a, T: AsRef<str> + ?Sized>(value: &'a T) -> Opt<'a> {
+pub fn if_description<T: AsRef<str> + ?Sized>(value: &T) -> Opt {
     opt(IF_DESCRIPTION, value.as_ref())
 }
 
@@ -96,13 +96,13 @@ pub fn if_tzone<'a, T: ByteOrder>(tzone: u32) -> Opt<'a> {
 }
 
 /// This option identifies the filter (e.g. "capture only TCP traffic") used to capture traffic.
-pub fn if_filter<'a, T: AsRef<str> + ?Sized>(value: &'a T) -> Opt<'a> {
+pub fn if_filter<T: AsRef<str> + ?Sized>(value: &T) -> Opt {
     opt(IF_FILTER, value.as_ref())
 }
 
 /// This  option is a UTF-8 string containing the name of the operating system of the machine
 /// in which this interface is installed.
-pub fn if_os<'a, T: AsRef<str> + ?Sized>(value: &'a T) -> Opt<'a> {
+pub fn if_os<T: AsRef<str> + ?Sized>(value: &T) -> Opt {
     opt(IF_OS, value.as_ref())
 }
 

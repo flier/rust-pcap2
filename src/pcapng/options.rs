@@ -146,11 +146,11 @@ impl<W: Write + ?Sized> WriteOptions for W {
         if let Some(pen) = opt.pen {
             self.write_u32::<T>(pen)?;
         }
-        self.write(&opt.value)?;
+        self.write_all(&opt.value)?;
 
         let padded_len = pad_to::<u32>(opt.value.len()) - opt.value.len();
         if padded_len > 0 {
-            self.write(&vec![0; padded_len])?;
+            self.write_all(&vec![0; padded_len])?;
         }
 
         Ok(opt.size())
@@ -169,7 +169,7 @@ pub struct Opt<'a> {
     pub value: Cow<'a, [u8]>,
 }
 
-pub fn opt<'a, T: AsRef<[u8]> + ?Sized>(code: u16, value: &'a T) -> Opt<'a> {
+pub fn opt<T: AsRef<[u8]> + ?Sized>(code: u16, value: &T) -> Opt {
     Opt::new(code, value.as_ref())
 }
 
@@ -177,23 +177,23 @@ pub fn end_of_opt<'a>() -> Opt<'a> {
     Opt::new(OPT_ENDOFOPT, &[][..])
 }
 
-pub fn comment<'a>(value: &'a str) -> Opt<'a> {
+pub fn comment(value: &str) -> Opt {
     Opt::new(OPT_COMMENT, value.as_bytes())
 }
 
-pub fn custom_str<'a>(private_enterprise_number: u32, value: &'a str) -> Opt<'a> {
+pub fn custom_str(private_enterprise_number: u32, value: &str) -> Opt {
     Opt::custom(OPT_CUSTOM_STR, private_enterprise_number, value)
 }
 
-pub fn custom_bytes<'a>(private_enterprise_number: u32, value: &'a [u8]) -> Opt<'a> {
+pub fn custom_bytes(private_enterprise_number: u32, value: &[u8]) -> Opt {
     Opt::custom(OPT_CUSTOM_BYTES, private_enterprise_number, value)
 }
 
-pub fn custom_private_str<'a>(private_enterprise_number: u32, value: &'a str) -> Opt<'a> {
+pub fn custom_private_str(private_enterprise_number: u32, value: &str) -> Opt {
     Opt::custom(OPT_CUSTOM_PRIVATE_STR, private_enterprise_number, value)
 }
 
-pub fn custom_private_bytes<'a>(private_enterprise_number: u32, value: &'a [u8]) -> Opt<'a> {
+pub fn custom_private_bytes(private_enterprise_number: u32, value: &[u8]) -> Opt {
     Opt::custom(OPT_CUSTOM_PRIVATE_BYTES, private_enterprise_number, value)
 }
 
@@ -205,7 +205,7 @@ impl<'a> Opt<'a> {
             code,
             len: value.len() as u16,
             pen: None,
-            value: value.into(),
+            value,
         }
     }
 
