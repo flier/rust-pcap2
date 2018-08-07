@@ -21,12 +21,15 @@ pub const ISB_USRDELIV: u16 = 8;
 
 /// This option specifies the time the capture started
 pub fn isb_starttime<'a, T: ByteOrder>(ticks: Timestamp) -> Opt<'a> {
-    Opt::u64::<T>(ISB_STARTTIME, ((ticks as u32 as u64) << 32) + (ticks >> 32))
+    Opt::u64::<T>(
+        ISB_STARTTIME,
+        (u64::from(ticks as u32) << 32) + (ticks >> 32),
+    )
 }
 
 /// This option specifies the time the capture ended
 pub fn isb_endtime<'a, T: ByteOrder>(ticks: Timestamp) -> Opt<'a> {
-    Opt::u64::<T>(ISB_ENDTIME, ((ticks as u32 as u64) << 32) + (ticks >> 32))
+    Opt::u64::<T>(ISB_ENDTIME, (u64::from(ticks as u32) << 32) + (ticks >> 32))
 }
 
 /// This option specifies the number of packets received from the physical interface
