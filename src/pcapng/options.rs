@@ -76,7 +76,6 @@ impl<'a, R: Read> ReadOptions<'a> for BufReader<R> {
                 .map_err(|err| Error::from(PcapError::from(err)))?;
 
             if code == OPT_ENDOFOPT {
-                options.push(end_of_opt());
                 break;
             }
 
@@ -132,8 +131,8 @@ pub trait WriteOptions {
             }
         }
 
-        if !found_end_of_opt {
-            self.write_option::<T>(&end_of_opt())?;
+        if wrote > 0 && !found_end_of_opt {
+            wrote += self.write_option::<T>(&end_of_opt())?;
         }
 
         Ok(wrote)
@@ -149,9 +148,9 @@ impl<W: Write + ?Sized> WriteOptions for W {
         }
         self.write(&opt.value)?;
 
-        let pad_len = pad_to::<u32>(opt.value.len()) - opt.value.len();
-        if pad_len > 0 {
-            self.write(&vec![0; pad_len])?;
+        let padded_len = pad_to::<u32>(opt.value.len()) - opt.value.len();
+        if padded_len > 0 {
+            self.write(&vec![0; padded_len])?;
         }
 
         Ok(opt.size())
@@ -360,11 +359,14 @@ impl<'a> Opt<'a> {
 /// /              variable length, padded to 32 bits               /
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-named_args!(pub parse_options(endianness: Endianness)<Options>,
-    map!(many_till!(apply!(parse_opt, endianness), tag!(b"\0\0\0\0")), |(mut options, _)| {
-        options.push(end_of_opt());
-        options
-    })
+named_args!(pub parse_options<'a>(endianness: Endianness)<&'a [u8], Options<'a>>,
+    map!(
+        many_till!(
+            apply!(parse_opt, endianness),
+            alt!(not!(complete!(non_empty)) | tag!(b"\0\0\0\0") => {|_| ()})
+        ),
+        |(options, _)| options
+    )
 );
 
 named_args!(parse_opt(endianness: Endianness)<Opt>,
@@ -386,7 +388,7 @@ named_args!(parse_opt(endianness: Endianness)<Opt>,
     )
 );
 
-fn pad_to<T>(size: usize) -> usize {
+pub fn pad_to<T>(size: usize) -> usize {
     let pad_size = mem::size_of::<T>();
 
     ((size + pad_size - 1) / pad_size) * pad_size
@@ -417,7 +419,6 @@ mod tests {
             custom_str(123, "github.com"),
             comment("foo"),
             opt(123, "bar"),
-            end_of_opt(),
         ];
     }
 
@@ -435,6 +436,14 @@ mod tests {
         let options = input.read_options(Endianness::Little).unwrap();
 
         assert_eq!(options, *OPTIONS);
+    }
+
+    #[test]
+    fn test_parse_empty() {
+        assert_eq!(
+            parse_options(&[][..], Endianness::Little).unwrap(),
+            (&[][..], vec![])
+        );
     }
 
     #[test]

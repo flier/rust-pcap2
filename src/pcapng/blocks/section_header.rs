@@ -191,7 +191,7 @@ mod tests {
     use byteorder::LittleEndian;
 
     use super::*;
-    use pcapng::{end_of_opt, Block};
+    use pcapng::Block;
 
     pub const LE_SECTION_HEADER: &[u8] = b"\n\r\r\n\xc0\0\0\0\
 \x4d\x3c\x2b\x1a\x01\0\0\0\xff\xff\xff\xff\xff\xff\xff\xff\
@@ -211,7 +211,6 @@ mod tests {
                 shb_hardware("Intel(R) Core(TM) i5-4690 CPU @ 3.50GHz (with SSE4.2)"),
                 shb_os("Mac OS X 10.13, build 17A405 (Darwin 17.0.0)"),
                 shb_userappl("Dumpcap (Wireshark) 2.6.1 (v2.6.1-0-g860a78b3)"),
-                end_of_opt(),
             ],
         };
     }

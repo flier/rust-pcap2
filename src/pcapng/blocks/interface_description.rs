@@ -342,7 +342,7 @@ mod tests {
     use byteorder::LittleEndian;
 
     use super::*;
-    use pcapng::{end_of_opt, Block};
+    use pcapng::Block;
     use LinkType;
 
     pub const LE_INTERFACE_DESCRIPTION: &[u8] = b"\x01\x00\x00\x00\
@@ -365,7 +365,6 @@ mod tests {
                 if_name("en0"),
                 if_tsresol(6),
                 if_os("Mac OS X 10.13.6, build 17G65 (Darwin 17.7.0)"),
-                end_of_opt(),
             ],
         };
     }
@@ -418,7 +417,6 @@ mod tests {
                 if_os("Mac OS X 10.13.6, build 17G65 (Darwin 17.7.0)"),
                 if_fcslen(4),
                 if_tsoffset::<LittleEndian>(1234),
-                end_of_opt(),
             ],
         };
 
