@@ -8,7 +8,6 @@ use nom::*;
 use errors::{PcapError, Result};
 use pcapng::options::{opt, parse_options, Opt, Options, WriteOptions};
 use pcapng::Block;
-use LinkType;
 
 pub const BLOCK_TYPE: u32 = 0x00000001;
 
@@ -148,6 +147,117 @@ impl<'a> InterfaceDescription<'a> {
     pub fn parse(buf: &'a [u8], endianness: Endianness) -> Result<(&'a [u8], Self)> {
         parse_interface_description(buf, endianness).map_err(|err| PcapError::from(err).into())
     }
+
+    pub fn name(&self) -> Option<&str> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == IF_NAME)
+            .and_then(|opt| opt.as_str())
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == IF_DESCRIPTION)
+            .and_then(|opt| opt.as_str())
+    }
+
+    pub fn ipv4addr(&self) -> Vec<(Ipv4Addr, Ipv4Addr)> {
+        self.options
+            .iter()
+            .filter(|opt| opt.code == IF_IPV4ADDR && opt.len as usize == mem::size_of::<u32>() * 2)
+            .map(|opt| {
+                (
+                    Ipv4Addr::from(*array_ref![opt.value(), 0, 4]),
+                    Ipv4Addr::from(*array_ref![opt.value(), 4, 4]),
+                )
+            })
+            .collect()
+    }
+
+    pub fn ipv6addr(&self) -> Vec<(Ipv6Addr, u8)> {
+        self.options
+            .iter()
+            .filter(|opt| opt.code == IF_IPV6ADDR && opt.len == 17)
+            .map(|opt| {
+                (
+                    Ipv6Addr::from(*array_ref![opt.value(), 0, 16]),
+                    opt.value()[16],
+                )
+            })
+            .collect()
+    }
+
+    pub fn macaddr(&self) -> Option<&MacAddr> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == IF_MACADDR && opt.len == 6)
+            .map(|opt| array_ref![opt.value(), 0, 6])
+    }
+
+    pub fn euiaddr(&self) -> Option<&EuiAddr> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == IF_EUIADDR && opt.len == 8)
+            .map(|opt| array_ref![opt.value(), 0, 8])
+    }
+
+    pub fn speed<T: ByteOrder>(&self) -> Option<u64> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == IF_SPEED && opt.len as usize == mem::size_of::<u64>())
+            .map(|opt| T::read_u64(opt.value()))
+    }
+
+    pub fn tsresol(&self) -> Option<i8> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == IF_TSRESOL && opt.len == 1)
+            .map(|opt| {
+                let n = opt.value()[0];
+
+                if (n & 0x80) == 0x80 {
+                    -((n & 0x7F) as i8)
+                } else {
+                    n as i8
+                }
+            })
+    }
+
+    pub fn tzone<T: ByteOrder>(&self) -> Option<u32> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == IF_TZONE && opt.len as usize == mem::size_of::<u32>())
+            .map(|opt| T::read_u32(opt.value()))
+    }
+
+    pub fn filter(&self) -> Option<&str> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == IF_FILTER)
+            .and_then(|opt| opt.as_str())
+    }
+
+    pub fn os(&self) -> Option<&str> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == IF_OS)
+            .and_then(|opt| opt.as_str())
+    }
+
+    pub fn fcslen(&self) -> Option<u8> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == IF_FCSLEN && opt.len == 1)
+            .map(|opt| opt.value()[0])
+    }
+
+    pub fn tsoffset<T: ByteOrder>(&self) -> Option<u64> {
+        self.options
+            .iter()
+            .find(|opt| opt.code == IF_TSOFFSET && opt.len as usize == mem::size_of::<u64>())
+            .map(|opt| T::read_u64(opt.value()))
+    }
 }
 
 ///     0                   1                   2                   3
@@ -233,6 +343,7 @@ mod tests {
 
     use super::*;
     use pcapng::{end_of_opt, Block};
+    use LinkType;
 
     pub const LE_INTERFACE_DESCRIPTION: &[u8] = b"\x01\x00\x00\x00\
 \x5C\x00\x00\x00\
@@ -284,6 +395,80 @@ mod tests {
         assert_eq!(
             buf.as_slice(),
             &LE_INTERFACE_DESCRIPTION[8..LE_INTERFACE_DESCRIPTION.len() - 4]
+        );
+    }
+
+    #[test]
+    fn test_options() {
+        let interface_description = InterfaceDescription {
+            link_type: LinkType::ETHERNET as u16,
+            reserved: 0,
+            snap_len: 0x080000,
+            options: vec![
+                if_name("en0"),
+                if_description("Broadcom NetXtreme"),
+                if_ipv4addr(Ipv4Addr::new(127, 0, 0, 1), Ipv4Addr::new(255, 255, 255, 0)),
+                if_ipv6addr(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1), 64),
+                if_macaddr([0x00, 0x01, 0x02, 0x03, 0x04, 0x05]),
+                if_euiaddr([0x02, 0x34, 0x56, 0xFF, 0xFE, 0x78, 0x9A, 0xBC]),
+                if_speed::<LittleEndian>(100000000),
+                if_tsresol(-6),
+                if_tzone::<LittleEndian>(8),
+                if_filter("tcp port 23 and host 192.0.2.5"),
+                if_os("Mac OS X 10.13.6, build 17G65 (Darwin 17.7.0)"),
+                if_fcslen(4),
+                if_tsoffset::<LittleEndian>(1234),
+                end_of_opt(),
+            ],
+        };
+
+        let mut buf = vec![];
+
+        buf.write_interface_description::<LittleEndian>(&interface_description)
+            .unwrap();
+
+        let (_, interface_description) =
+            InterfaceDescription::parse(&buf, Endianness::Little).unwrap();
+
+        assert_eq!(interface_description.name().unwrap(), "en0");
+        assert_eq!(
+            interface_description.description().unwrap(),
+            "Broadcom NetXtreme"
+        );
+        assert_eq!(
+            interface_description.ipv4addr(),
+            vec![(Ipv4Addr::new(127, 0, 0, 1), Ipv4Addr::new(255, 255, 255, 0))]
+        );
+        assert_eq!(
+            interface_description.ipv6addr(),
+            vec![(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1), 64)]
+        );
+        assert_eq!(
+            interface_description.macaddr().unwrap(),
+            &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05]
+        );
+        assert_eq!(
+            interface_description.euiaddr().unwrap(),
+            &[0x02, 0x34, 0x56, 0xFF, 0xFE, 0x78, 0x9A, 0xBC]
+        );
+        assert_eq!(
+            interface_description.speed::<LittleEndian>().unwrap(),
+            100000000
+        );
+        assert_eq!(interface_description.tsresol().unwrap(), -6);
+        assert_eq!(interface_description.tzone::<LittleEndian>().unwrap(), 8);
+        assert_eq!(
+            interface_description.filter().unwrap(),
+            "tcp port 23 and host 192.0.2.5"
+        );
+        assert_eq!(
+            interface_description.os().unwrap(),
+            "Mac OS X 10.13.6, build 17G65 (Darwin 17.7.0)"
+        );
+        assert_eq!(interface_description.fcslen().unwrap(), 4);
+        assert_eq!(
+            interface_description.tsoffset::<LittleEndian>().unwrap(),
+            1234
         );
     }
 }

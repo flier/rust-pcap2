@@ -224,7 +224,7 @@ impl<'a> Opt<'a> {
     pub fn u64<T: ByteOrder>(code: u16, value: u64) -> Opt<'a> {
         let mut buf = vec![0; mem::size_of::<u64>()];
 
-        buf.write_u64::<T>(value).unwrap();
+        T::write_u64(&mut buf, value);
 
         Opt::new(code, buf)
     }
@@ -232,7 +232,7 @@ impl<'a> Opt<'a> {
     pub fn u32<T: ByteOrder>(code: u16, value: u32) -> Opt<'a> {
         let mut buf = vec![0; mem::size_of::<u32>()];
 
-        buf.write_u32::<T>(value).unwrap();
+        T::write_u32(&mut buf, value);
 
         Opt::new(code, buf)
     }
