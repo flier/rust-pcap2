@@ -1,3 +1,4 @@
+pub mod custom;
 pub mod enhanced_packet;
 pub mod interface_description;
 pub mod interface_statistics;
@@ -7,6 +8,7 @@ pub mod section_header;
 pub mod simple_packet;
 pub mod timestamp;
 
+pub use self::custom::CustomBlock;
 pub use self::enhanced_packet::{
     epb_dropcount, epb_flags, epb_hash, EnhancedPacket, HASH_ALGO_2S_COMPLEMENT, HASH_ALGO_CRC32,
     HASH_ALGO_MD5, HASH_ALGO_SHA1, HASH_ALGO_XOR,
