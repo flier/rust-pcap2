@@ -5,70 +5,24 @@ use std::mem;
 use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
+pub use super::enhanced_packet::{
+    epb_flags as pack_flags, epb_hash as pack_hash, Flags, EPB_FLAGS as PACK_FLAGS,
+    EPB_HASH as PACK_HASH,
+};
+use super::timestamp::{self, Timestamp, WriteTimestamp};
 use errors::{PcapError, Result};
-use pcapng::blocks::timestamp::{self, Timestamp, WriteTimestamp};
-use pcapng::options::{pad_to, parse_options, Opt, Options, WriteOptions};
+use pcapng::options::{pad_to, parse_options, Options, WriteOptions};
 use pcapng::Block;
 
-pub const BLOCK_TYPE: u32 = 0x0000_0006;
+pub const BLOCK_TYPE: u32 = 0x0000_0002;
 
-pub const EPB_FLAGS: u16 = 2;
-pub const EPB_HASH: u16 = 3;
-pub const EPB_DROPCOUNT: u16 = 4;
-
-bitflags! {
-    pub struct Flags: u32 {
-        const INBOUND   = 1;
-        const OUTBOUND  = 2;
-
-        const UNICAST       = 1 << 2;
-        const MULTICAST     = 2 << 2;
-        const BROADCAST     = 3 << 2;
-        const PROMISCUOUS   = 4 << 2;
-
-        const FCS_LEN_MASK  = 0xF << 5;
-
-        const CRC_ERROR             = 1 << 24;
-        const PACKET_TOO_LONG       = 1 << 25;
-        const PACKET_TOO_SHORT      = 1 << 26;
-        const WRONG_INTER_FRAME_GAP = 1 << 27;
-        const UNALIGNED_FRAME       = 1 << 28;
-        const START_FRAME_DELIMITER = 1 << 29;
-        const PREAMBLE_ERROR        = 1 << 30;
-        const SYMBOL_ERROR          = 1 << 31;
-    }
-}
-
-/// This option is a 32-bit flags word containing link-layer information.
-pub fn epb_flags<'a, T: ByteOrder>(flags: Flags) -> Opt<'a> {
-    Opt::u32::<T>(EPB_FLAGS, flags.bits())
-}
-
-pub const HASH_ALGO_2S_COMPLEMENT: u8 = 0;
-pub const HASH_ALGO_XOR: u8 = 1;
-pub const HASH_ALGO_CRC32: u8 = 2;
-pub const HASH_ALGO_MD5: u8 = 3;
-pub const HASH_ALGO_SHA1: u8 = 4;
-
-/// This option contains a hash of the packet.
-pub fn epb_hash<'a, T: AsRef<[u8]>>(algorithm: u8, hash: T) -> Opt<'a> {
-    let mut buf = vec![algorithm];
-
-    buf.write_all(hash.as_ref()).unwrap();
-
-    Opt::new(EPB_HASH, buf)
-}
-
-/// This option is a 64-bit integer value specifying the number of packets lost
-pub fn epb_dropcount<'a, T: ByteOrder>(count: u64) -> Opt<'a> {
-    Opt::u64::<T>(EPB_DROPCOUNT, count)
-}
-
-/// An Enhanced Packet Block is the standard container for storing the packets coming from the network.
+/// A Packet Block was a container for storing packets coming from the network.
 #[derive(Clone, Debug, PartialEq)]
-pub struct EnhancedPacket<'a> {
-    /// the interface this packet comes from
-    pub interface_id: u32,
+pub struct ObsoletedPacket<'a> {
+    /// specifies the interface this packet comes from
+    pub interface_id: u16,
+    /// a local drop counter.
+    pub drops_count: Option<u16>,
     /// the number of units of time that have elapsed since 1970-01-01 00:00:00 UTC.
     pub timestamp: Timestamp,
     /// number of octets captured from the packet.
@@ -81,55 +35,49 @@ pub struct EnhancedPacket<'a> {
     pub options: Options<'a>,
 }
 
-impl<'a> EnhancedPacket<'a> {
+impl<'a> ObsoletedPacket<'a> {
     pub fn block_type() -> u32 {
         BLOCK_TYPE
     }
 
     pub fn size(&self) -> usize {
         self.options.iter().fold(
-            mem::size_of::<u32>() * 3
+            mem::size_of::<u16>() * 2
                 + mem::size_of::<Timestamp>()
+                + mem::size_of::<u32>() * 2
                 + pad_to::<u32>(self.data.len()),
             |size, opt| size + opt.size(),
         )
     }
 
     pub fn parse(buf: &'a [u8], endianness: Endianness) -> Result<(&'a [u8], Self)> {
-        parse_enhanced_packet(buf, endianness).map_err(|err| PcapError::from(err).into())
+        parse_obsoleted_packet(buf, endianness).map_err(|err| PcapError::from(err).into())
     }
 
     pub fn flags<T: ByteOrder>(&self) -> Option<Flags> {
         self.options
             .iter()
-            .find(|opt| opt.code == EPB_FLAGS && opt.value.len() == mem::size_of::<u32>())
+            .find(|opt| opt.code == PACK_FLAGS && opt.value.len() == mem::size_of::<u32>())
             .map(|opt| Flags::from_bits_truncate(T::read_u32(&opt.value)))
     }
 
     pub fn hash(&self) -> Vec<(u8, &[u8])> {
         self.options
             .iter()
-            .filter(|opt| opt.code == EPB_HASH && opt.value.len() > 0)
+            .filter(|opt| opt.code == PACK_HASH && opt.value.len() > 0)
             .map(|opt| (opt.value[0], &opt.value[1..]))
             .collect()
     }
-
-    pub fn dropcount<T: ByteOrder>(&self) -> Option<u64> {
-        self.options
-            .iter()
-            .find(|opt| opt.code == EPB_DROPCOUNT && opt.value.len() == mem::size_of::<u64>())
-            .map(|opt| T::read_u64(&opt.value))
-    }
 }
 
-///    0                   1                   2                   3
-///    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+///     0                   1                   2                   3
+///     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 ///    +---------------------------------------------------------------+
-///  0 |                    Block Type = 0x00000006                    |
+///  0 |                    Block Type = 0x00000002                    |
 ///    +---------------------------------------------------------------+
 ///  4 |                      Block Total Length                       |
 ///    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///  8 |                         Interface ID                          |
+///  8 |         Interface ID          |          Drops Count          |
 ///    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// 12 |                        Timestamp (High)                       |
 ///    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -150,9 +98,10 @@ impl<'a> EnhancedPacket<'a> {
 ///    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ///    |                      Block Total Length                       |
 ///    +---------------------------------------------------------------+
-named_args!(parse_enhanced_packet(endianness: Endianness)<EnhancedPacket>,
+named_args!(parse_obsoleted_packet(endianness: Endianness)<ObsoletedPacket>,
     dbg_dmp!(do_parse!(
-        interface_id: u32!(endianness) >>
+        interface_id: u16!(endianness) >>
+        drops_count:  u16!(endianness) >>
         timestamp_hi: u32!(endianness) >>
         timestamp_lo: u32!(endianness) >>
         captured_len: u32!(endianness) >>
@@ -160,8 +109,9 @@ named_args!(parse_enhanced_packet(endianness: Endianness)<EnhancedPacket>,
         data: take!(pad_to::<u32>(captured_len as usize)) >>
         options: apply!(parse_options, endianness) >>
         (
-            EnhancedPacket {
+            ObsoletedPacket {
                 interface_id,
+                drops_count: if drops_count == 0xFFFF { None } else { Some(drops_count) },
                 timestamp: timestamp::new(timestamp_hi, timestamp_lo),
                 captured_len,
                 original_len,
@@ -172,19 +122,20 @@ named_args!(parse_enhanced_packet(endianness: Endianness)<EnhancedPacket>,
     ))
 );
 
-pub trait WriteEnhancedPacket {
-    fn write_enhanced_packet<'a, T: ByteOrder>(
+pub trait WriteObsoletedPacket {
+    fn write_obsoleted_packet<'a, T: ByteOrder>(
         &mut self,
-        packet: &EnhancedPacket<'a>,
+        packet: &ObsoletedPacket<'a>,
     ) -> Result<usize>;
 }
 
-impl<W: Write + ?Sized> WriteEnhancedPacket for W {
-    fn write_enhanced_packet<'a, T: ByteOrder>(
+impl<W: Write + ?Sized> WriteObsoletedPacket for W {
+    fn write_obsoleted_packet<'a, T: ByteOrder>(
         &mut self,
-        packet: &EnhancedPacket<'a>,
+        packet: &ObsoletedPacket<'a>,
     ) -> Result<usize> {
-        self.write_u32::<T>(packet.interface_id)?;
+        self.write_u16::<T>(packet.interface_id)?;
+        self.write_u16::<T>(packet.drops_count.unwrap_or(0xFFFF))?;
         self.write_timestamp::<T>(packet.timestamp)?;
         self.write_u32::<T>(packet.captured_len)?;
         self.write_u32::<T>(packet.original_len)?;
@@ -200,12 +151,12 @@ impl<W: Write + ?Sized> WriteEnhancedPacket for W {
 }
 
 impl<'a> Block<'a> {
-    pub fn as_enhanced_packet(&'a self, endianness: Endianness) -> Option<EnhancedPacket<'a>> {
-        if self.ty == EnhancedPacket::block_type() {
-            EnhancedPacket::parse(&self.body, endianness)
+    pub fn as_obsoleted_packet(&'a self, endianness: Endianness) -> Option<ObsoletedPacket<'a>> {
+        if self.ty == ObsoletedPacket::block_type() {
+            ObsoletedPacket::parse(&self.body, endianness)
                 .map(|(_, packet)| packet)
                 .map_err(|err| {
-                    warn!("fail to parse enhanced packet: {:?}", err);
+                    warn!("fail to parse obsoleted packet: {:?}", err);
 
                     hexdump!(self.body);
 
@@ -223,11 +174,12 @@ mod tests {
     use byteorder::LittleEndian;
 
     use super::*;
+    use pcapng::blocks::enhanced_packet::{HASH_ALGO_CRC32, HASH_ALGO_MD5};
     use pcapng::Block;
 
-    pub const LE_ENHANCED_PACKET: &[u8] = b"\x06\x00\x00\x00\
+    pub const LE_ENHANCED_PACKET: &[u8] = b"\x02\x00\x00\x00\
 \x64\x00\x00\x00\
-\x00\x00\x00\x00\
+\x00\x00\xFF\xFF\
 \x6A\x72\x05\x00\xC1\x6A\x96\x80\
 \x42\x00\x00\x00\
 \x42\x00\x00\x00\
@@ -239,8 +191,9 @@ mod tests {
 \x64\x00\x00\x00";
 
     lazy_static! {
-        static ref ENHANCED_PACKET: EnhancedPacket<'static> = EnhancedPacket {
+        static ref ENHANCED_PACKET: ObsoletedPacket<'static> = ObsoletedPacket {
             interface_id: 0,
+            drops_count: None,
             timestamp: 0x05726a80966ac1,
             captured_len: 66,
             original_len: 66,
@@ -263,9 +216,9 @@ mod tests {
         assert_eq!(block.ty, BLOCK_TYPE);
         assert_eq!(block.len as usize, LE_ENHANCED_PACKET.len());
 
-        let enhanced_packet = block.as_enhanced_packet(Endianness::Little).unwrap();
+        let obsoleted_packet = block.as_obsoleted_packet(Endianness::Little).unwrap();
 
-        assert_eq!(enhanced_packet, *ENHANCED_PACKET);
+        assert_eq!(obsoleted_packet, *ENHANCED_PACKET);
     }
 
     #[test]
@@ -273,7 +226,7 @@ mod tests {
         let mut buf = vec![];
 
         let wrote = buf
-            .write_enhanced_packet::<LittleEndian>(&ENHANCED_PACKET.clone())
+            .write_obsoleted_packet::<LittleEndian>(&ENHANCED_PACKET.clone())
             .unwrap();
 
         assert_eq!(wrote, ENHANCED_PACKET.size());
@@ -285,31 +238,31 @@ mod tests {
 
     #[test]
     fn test_options() {
-        let packet = EnhancedPacket {
+        let packet = ObsoletedPacket {
             interface_id: 0,
+            drops_count: Some(123),
             timestamp: 0,
             captured_len: 0,
             original_len: 0,
             data: Cow::from(&[][..]),
             options: vec![
-                epb_flags::<LittleEndian>(Flags::INBOUND | Flags::UNICAST),
-                epb_hash(HASH_ALGO_CRC32, [0xEC, 0x1D, 0x87, 0x97]),
-                epb_hash(
+                pack_flags::<LittleEndian>(Flags::INBOUND | Flags::UNICAST),
+                pack_hash(HASH_ALGO_CRC32, [0xEC, 0x1D, 0x87, 0x97]),
+                pack_hash(
                     HASH_ALGO_MD5,
                     [
                         0x45, 0x6E, 0xC2, 0x17, 0x7C, 0x10, 0x1E, 0x3C, 0x2E, 0x99, 0x6E, 0xC2,
                         0x9A, 0x3D, 0x50, 0x8E,
                     ],
                 ),
-                epb_dropcount::<LittleEndian>(123),
             ],
         };
 
         let mut buf = vec![];
 
-        buf.write_enhanced_packet::<LittleEndian>(&packet).unwrap();
+        buf.write_obsoleted_packet::<LittleEndian>(&packet).unwrap();
 
-        let (_, packet) = EnhancedPacket::parse(&buf, Endianness::Little).unwrap();
+        let (_, packet) = ObsoletedPacket::parse(&buf, Endianness::Little).unwrap();
 
         assert_eq!(
             packet.flags::<LittleEndian>().unwrap(),
@@ -328,6 +281,6 @@ mod tests {
                 ),
             ]
         );
-        assert_eq!(packet.dropcount::<LittleEndian>().unwrap(), 123);
+        assert_eq!(packet.drops_count.unwrap(), 123);
     }
 }

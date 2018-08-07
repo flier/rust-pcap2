@@ -2,6 +2,7 @@ mod enhanced_packet;
 mod interface_description;
 mod interface_statistics;
 mod name_resolution;
+mod obsoleted_packet;
 mod section_header;
 mod simple_packet;
 mod timestamp;
@@ -22,6 +23,7 @@ pub use self::name_resolution::{
     nrb_record_end, nrb_record_ipv4, nrb_record_ipv6, ns_dnsip4addr, ns_dnsip6addr, ns_dnsname,
     NameResolution,
 };
+pub use self::obsoleted_packet::{pack_flags, pack_hash, ObsoletedPacket};
 pub use self::section_header::{shb_hardware, shb_os, shb_userappl, SectionHeader};
 pub use self::simple_packet::SimplePacket;
 pub use self::timestamp::Timestamp;
