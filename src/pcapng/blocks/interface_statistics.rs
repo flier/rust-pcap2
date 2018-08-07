@@ -224,7 +224,6 @@ mod tests {
 
     use super::*;
     use pcapng::{comment, Block};
-    use LinkType;
 
     pub const LE_INTERFACE_STATISTICS: &[u8] = b"\x05\x00\x00\x00\
 \x6C\x00\x00\x00\
