@@ -365,7 +365,7 @@ mod tests {
 
         assert_eq!(remaining, b"");
         assert_eq!(block.ty, BLOCK_TYPE);
-        assert_eq!(block.len as usize, LE_INTERFACE_DESCRIPTION.len());
+        assert_eq!(block.size(), LE_INTERFACE_DESCRIPTION.len());
 
         let interface_description = block.as_interface_description(Endianness::Little).unwrap();
 
@@ -376,7 +376,8 @@ mod tests {
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = buf.write_interface_description::<LittleEndian>(&INTERFACE_DESCRIPTION.clone())
+        let wrote = buf
+            .write_interface_description::<LittleEndian>(&INTERFACE_DESCRIPTION.clone())
             .unwrap();
 
         assert_eq!(wrote, INTERFACE_DESCRIPTION.size());

@@ -140,7 +140,7 @@ mod tests {
 
         assert_eq!(remaining, b"");
         assert_eq!(block.ty, BLOCK_TYPE);
-        assert_eq!(block.len as usize, LE_SIMPLE_PACKET.len());
+        assert_eq!(block.size(), LE_SIMPLE_PACKET.len());
 
         let simple_packet = block.as_simple_packet(Endianness::Little).unwrap();
 
@@ -151,7 +151,8 @@ mod tests {
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = buf.write_simple_packet::<LittleEndian>(&SIMPLE_PACKET.clone())
+        let wrote = buf
+            .write_simple_packet::<LittleEndian>(&SIMPLE_PACKET.clone())
             .unwrap();
 
         assert_eq!(wrote, SIMPLE_PACKET.size());

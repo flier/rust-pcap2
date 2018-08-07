@@ -267,7 +267,7 @@ mod tests {
 
         assert_eq!(remaining, b"");
         assert_eq!(block.ty, BLOCK_TYPE);
-        assert_eq!(block.len as usize, LE_INTERFACE_STATISTICS.len());
+        assert_eq!(block.size(), LE_INTERFACE_STATISTICS.len());
 
         let interface_statistics = block.as_interface_statistics(Endianness::Little).unwrap();
 

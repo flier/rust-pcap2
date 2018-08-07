@@ -117,7 +117,7 @@ mod tests {
     use byteorder::LittleEndian;
 
     use super::*;
-    use pcapng::{comment, Block};
+    use pcapng::Block;
 
     pub const LE_CUSTOM_BLOCK: &[u8] = b"\xAD\x0B\x00\x00\
 \x1C\x00\x00\x00\
@@ -139,7 +139,7 @@ hello world\x00\
 
         assert_eq!(remaining, b"");
         assert_eq!(block.ty, BLOCK_TYPE);
-        assert_eq!(block.len as usize, LE_CUSTOM_BLOCK.len());
+        assert_eq!(block.size(), LE_CUSTOM_BLOCK.len());
 
         let custom = block.as_custom_block(Endianness::Little).unwrap();
 

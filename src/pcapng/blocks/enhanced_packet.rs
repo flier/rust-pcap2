@@ -261,7 +261,7 @@ mod tests {
 
         assert_eq!(remaining, b"");
         assert_eq!(block.ty, BLOCK_TYPE);
-        assert_eq!(block.len as usize, LE_ENHANCED_PACKET.len());
+        assert_eq!(block.size(), LE_ENHANCED_PACKET.len());
 
         let enhanced_packet = block.as_enhanced_packet(Endianness::Little).unwrap();
 

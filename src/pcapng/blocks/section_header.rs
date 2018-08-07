@@ -221,7 +221,7 @@ mod tests {
 
         assert_eq!(remaining, b"");
         assert_eq!(block.ty, BLOCK_TYPE);
-        assert_eq!(block.len as usize, LE_SECTION_HEADER.len());
+        assert_eq!(block.size(), LE_SECTION_HEADER.len());
 
         let section_header = block.as_section_header(Endianness::Little).unwrap();
 
@@ -232,7 +232,8 @@ mod tests {
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = buf.write_section_header::<LittleEndian>(&SECTION_HEADER.clone())
+        let wrote = buf
+            .write_section_header::<LittleEndian>(&SECTION_HEADER.clone())
             .unwrap();
 
         assert_eq!(wrote, SECTION_HEADER.size());

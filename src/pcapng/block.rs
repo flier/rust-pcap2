@@ -6,6 +6,10 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
+use pcapng::options::pad_to;
+
+pub const MIN_BLOCK_SIZE: u32 = (mem::size_of::<u32>() * 3) as u32;
+pub const MAX_BLOCK_SIZE: u32 = 16 * 1024 * 1024;
 
 /// Public representation of a parsed block
 ///
@@ -22,32 +26,24 @@ use errors::{PcapError, Result};
 ///  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ///  |                      Block Total Length                       |
 ///  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Block<'a> {
     /// unique value that identifies the block.
     pub ty: u32,
-    /// total size of this block, in octets.
-    pub len: u32,
     /// content of the block.
     pub body: Cow<'a, [u8]>,
-    /// total size of this block, in octets.
-    pub _len: u32,
 }
 
 impl<'a> Block<'a> {
     pub fn new<T: AsRef<[u8]>>(ty: u32, body: &'a T) -> Block<'a> {
-        let body = body.as_ref();
-
         Block {
             ty,
-            len: body.len() as u32,
-            body: body.into(),
-            _len: body.len() as u32,
+            body: body.as_ref().into(),
         }
     }
 
     pub fn size(&self) -> usize {
-        mem::size_of::<u32>() * 3 + self.body.len()
+        mem::size_of::<u32>() * 3 + pad_to::<u32>(self.body.len())
     }
 
     pub fn parse(buf: &'a [u8], endianness: Endianness) -> Result<(&[u8], Self)> {
@@ -58,11 +54,11 @@ impl<'a> Block<'a> {
 named_args!(parse_block(endianness: Endianness)<Block>,
     dbg_dmp!(do_parse!(
         ty: u32!(endianness) >>
-        len: u32!(endianness) >>
-        body: map!(take!(len as usize - mem::size_of::<u32>() * 3), Cow::from) >>
-        _len: verify!(u32!(endianness), |n| n == len) >>
+        block_len: verify!(u32!(endianness), |n| MIN_BLOCK_SIZE <= n && n <= MAX_BLOCK_SIZE) >>
+        body: map!(take!(block_len as usize - mem::size_of::<u32>() * 3), Cow::from) >>
+        _check_len: verify!(u32!(endianness), |n| n == block_len) >>
         (
-            Block { ty, len, body, _len }
+            Block { ty, body }
         )
     ))
 );
@@ -74,9 +70,19 @@ pub trait WriteBlock {
 impl<W: Write + ?Sized> WriteBlock for W {
     fn write_block<'a, T: ByteOrder>(&mut self, block: Block<'a>) -> Result<usize> {
         self.write_u32::<T>(block.ty)?;
-        self.write_u32::<T>(block.len)?;
+
+        let body_len = pad_to::<u32>(block.body.len());
+        let block_len = MIN_BLOCK_SIZE as usize + body_len;
+
+        self.write_u32::<T>(block_len as u32)?;
         self.write_all(&block.body)?;
-        self.write_u32::<T>(block._len)?;
+
+        let padded_len = body_len - block.body.len();
+        if padded_len > 0 {
+            self.write_all(&vec![0; padded_len])?;
+        }
+
+        self.write_u32::<T>(block_len as u32)?;
 
         Ok(block.size())
     }
@@ -84,11 +90,52 @@ impl<W: Write + ?Sized> WriteBlock for W {
 
 #[cfg(test)]
 mod tests {
+    use nom;
+
     use super::*;
 
     #[test]
     pub fn test_layout() {
         assert_eq!(Block::new(0, b"").size(), 12);
         assert_eq!(Block::new(0, b"test").size(), 16);
+    }
+
+    #[test]
+    pub fn test_corrupted() {
+        assert_eq!(
+            parse_block(b"", Endianness::Little).unwrap_err(),
+            nom::Err::Incomplete(nom::Needed::Size(4))
+        );
+        assert_eq!(
+            parse_block(b"\x01\x00\x00\x00\x0A\x00\x00\x00", Endianness::Little).unwrap_err(),
+            nom::Err::Error(nom::Context::Code(
+                &b"\x0A\x00\x00\x00"[..],
+                nom::ErrorKind::Verify
+            ))
+        );
+        assert_eq!(
+            parse_block(b"\x01\x00\x00\x00\x00\x00\x00\x02", Endianness::Little).unwrap_err(),
+            nom::Err::Error(nom::Context::Code(
+                &b"\x00\x00\x00\x02"[..],
+                nom::ErrorKind::Verify
+            ))
+        );
+        assert_eq!(
+            parse_block(
+                b"\x01\x00\x00\x00\x0c\x00\x00\x00\x0a\x00\x00\x00",
+                Endianness::Little
+            ).unwrap_err(),
+            nom::Err::Error(nom::Context::Code(
+                &b"\x0a\x00\x00\x00"[..],
+                nom::ErrorKind::Verify
+            ))
+        );
+        assert_eq!(
+            parse_block(
+                b"\x01\x00\x00\x00\x0c\x00\x00\x00\x0c\x00\x00\x00",
+                Endianness::Little
+            ).unwrap(),
+            (&[][..], Block::new(1, b""))
+        );
     }
 }

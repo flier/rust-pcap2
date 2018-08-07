@@ -322,7 +322,7 @@ mod tests {
 
         assert_eq!(remaining, b"");
         assert_eq!(block.ty, BLOCK_TYPE);
-        assert_eq!(block.len as usize, LE_NAME_RESOLUTION.len());
+        assert_eq!(block.size(), LE_NAME_RESOLUTION.len());
 
         let name_resolution = block.as_name_resolution(Endianness::Little).unwrap();
 
@@ -333,7 +333,8 @@ mod tests {
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = buf.write_name_resolution::<LittleEndian>(&NAME_RESOLUTION.clone())
+        let wrote = buf
+            .write_name_resolution::<LittleEndian>(&NAME_RESOLUTION.clone())
             .unwrap();
 
         assert_eq!(wrote, NAME_RESOLUTION.size());
