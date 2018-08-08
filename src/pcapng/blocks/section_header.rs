@@ -6,8 +6,8 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
-use pcapng::block::Block;
 use pcapng::options::{opt, parse_options, Opt, Options};
+use pcapng::{Block, BlockType};
 use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0A0D_0D0A;
@@ -71,8 +71,8 @@ impl<'a> Default for SectionHeader<'a> {
 }
 
 impl<'a> SectionHeader<'a> {
-    pub fn block_type() -> u32 {
-        BLOCK_TYPE
+    pub fn block_type() -> BlockType {
+        BlockType::SectionHeader
     }
 
     pub fn size(&self) -> usize {
@@ -166,7 +166,7 @@ impl<'a> Block<'a> {
     }
 
     pub fn as_section_header(&'a self, endianness: Endianness) -> Option<SectionHeader<'a>> {
-        if self.ty == SectionHeader::block_type() {
+        if self.is_section_header() {
             SectionHeader::parse(&self.body, endianness)
                 .map(|(_, section_header)| section_header)
                 .map_err(|err| {

@@ -7,8 +7,8 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
-use pcapng::block::Block;
 use pcapng::options::{opt, pad_to, parse_options, Opt, Options};
+use pcapng::{Block, BlockType};
 use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0000_0004;
@@ -86,8 +86,8 @@ pub struct NameResolution<'a> {
 }
 
 impl<'a> NameResolution<'a> {
-    pub fn block_type() -> u32 {
-        BLOCK_TYPE
+    pub fn block_type() -> BlockType {
+        BlockType::NameResolution
     }
 
     pub fn size(&self) -> usize {
@@ -254,8 +254,12 @@ impl<'a> WriteTo for NameResolution<'a> {
 }
 
 impl<'a> Block<'a> {
+    pub fn is_name_resolution(&self) -> bool {
+        self.ty == BLOCK_TYPE
+    }
+
     pub fn as_name_resolution(&'a self, endianness: Endianness) -> Option<NameResolution<'a>> {
-        if self.ty == NameResolution::block_type() {
+        if self.is_name_resolution() {
             NameResolution::parse(&self.body, endianness)
                 .map(|(_, name_resolution)| name_resolution)
                 .map_err(|err| {

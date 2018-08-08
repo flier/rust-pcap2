@@ -311,8 +311,8 @@ mod tests {
         interface_statistics::tests::LE_INTERFACE_STATISTICS,
         name_resolution::tests::LE_NAME_RESOLUTION, obsoleted_packet::tests::LE_OBSOLETED_PACKET,
         section_header::tests::LE_SECTION_HEADER, simple_packet::tests::LE_SIMPLE_PACKET,
+        BlockType,
     };
-    use pcapng::*;
 
     lazy_static! {
         static ref LE_FILE: Vec<u8> = {
@@ -337,15 +337,18 @@ mod tests {
         let reader = parse(LE_FILE.as_slice()).unwrap();
 
         assert_eq!(
-            reader.blocks().map(|block| block.ty).collect::<Vec<_>>(),
+            reader
+                .blocks()
+                .flat_map(|block| block.block_type())
+                .collect::<Vec<_>>(),
             vec![
-                SectionHeader::block_type(),
-                InterfaceDescription::block_type(),
-                NameResolution::block_type(),
-                EnhancedPacket::block_type(),
-                SimplePacket::block_type(),
-                ObsoletedPacket::block_type(),
-                InterfaceStatistics::block_type(),
+                BlockType::SectionHeader,
+                BlockType::InterfaceDescription,
+                BlockType::NameResolution,
+                BlockType::EnhancedPacket,
+                BlockType::SimplePacket,
+                BlockType::ObsoletedPacket,
+                BlockType::InterfaceStatistics,
             ]
         );
     }
@@ -357,15 +360,18 @@ mod tests {
         let reader = read(Cursor::new(LE_FILE.as_slice())).unwrap();
 
         assert_eq!(
-            reader.blocks().map(|block| block.ty).collect::<Vec<_>>(),
+            reader
+                .blocks()
+                .flat_map(|block| block.block_type())
+                .collect::<Vec<_>>(),
             vec![
-                SectionHeader::block_type(),
-                InterfaceDescription::block_type(),
-                NameResolution::block_type(),
-                EnhancedPacket::block_type(),
-                SimplePacket::block_type(),
-                ObsoletedPacket::block_type(),
-                InterfaceStatistics::block_type(),
+                BlockType::SectionHeader,
+                BlockType::InterfaceDescription,
+                BlockType::NameResolution,
+                BlockType::EnhancedPacket,
+                BlockType::SimplePacket,
+                BlockType::ObsoletedPacket,
+                BlockType::InterfaceStatistics,
             ]
         );
     }

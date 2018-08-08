@@ -6,8 +6,8 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
-use pcapng::block::Block;
 use pcapng::options::{opt, parse_options, Opt, Options};
+use pcapng::{Block, BlockType};
 use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0000_0001;
@@ -130,8 +130,8 @@ pub struct InterfaceDescription<'a> {
 }
 
 impl<'a> InterfaceDescription<'a> {
-    pub fn block_type() -> u32 {
-        BLOCK_TYPE
+    pub fn block_type() -> BlockType {
+        BlockType::InterfaceDescription
     }
 
     pub fn size(&self) -> usize {
@@ -318,7 +318,7 @@ impl<'a> Block<'a> {
         &'a self,
         endianness: Endianness,
     ) -> Option<InterfaceDescription<'a>> {
-        if self.ty == InterfaceDescription::block_type() {
+        if self.is_interface_description() {
             InterfaceDescription::parse(&self.body, endianness)
                 .map(|(_, interface_description)| interface_description)
                 .map_err(|err| {

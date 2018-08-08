@@ -6,8 +6,8 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
-use pcapng::block::Block;
 use pcapng::options::{pad_to, Options};
+use pcapng::{Block, BlockType};
 use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0000_0BAD;
@@ -25,8 +25,8 @@ pub struct CustomBlock<'a> {
 }
 
 impl<'a> CustomBlock<'a> {
-    pub fn block_type() -> u32 {
-        BLOCK_TYPE
+    pub fn block_type() -> BlockType {
+        BlockType::CustomBlock
     }
 
     pub fn size(&self) -> usize {
@@ -91,8 +91,33 @@ impl<'a> WriteTo for CustomBlock<'a> {
 }
 
 impl<'a> Block<'a> {
+    pub fn is_custom_block(&self) -> bool {
+        self.ty == BLOCK_TYPE
+    }
+
+    pub fn is_private_custom_block(&self) -> bool {
+        self.ty == PRIVATE_BLOCK_TYPE
+    }
+
     pub fn as_custom_block(&'a self, endianness: Endianness) -> Option<CustomBlock<'a>> {
-        if self.ty == CustomBlock::block_type() {
+        if self.is_custom_block() {
+            CustomBlock::parse(&self.body, endianness)
+                .map(|(_, packet)| packet)
+                .map_err(|err| {
+                    warn!("fail to parse custom block: {:?}", err);
+
+                    hexdump!(self.body);
+
+                    err
+                })
+                .ok()
+        } else {
+            None
+        }
+    }
+
+    pub fn as_private_custom_block(&'a self, endianness: Endianness) -> Option<CustomBlock<'a>> {
+        if self.is_private_custom_block() {
             CustomBlock::parse(&self.body, endianness)
                 .map(|(_, packet)| packet)
                 .map_err(|err| {

@@ -197,11 +197,15 @@ impl<'a> WriteTo for InterfaceStatistics<'a> {
 }
 
 impl<'a> Block<'a> {
+    pub fn is_interface_statistics(&self) -> bool {
+        self.ty == BLOCK_TYPE
+    }
+
     pub fn as_interface_statistics(
         &'a self,
         endianness: Endianness,
     ) -> Option<InterfaceStatistics<'a>> {
-        if self.ty == InterfaceStatistics::block_type() {
+        if self.is_interface_statistics() {
             InterfaceStatistics::parse(&self.body, endianness)
                 .map(|(_, packet)| packet)
                 .map_err(|err| {

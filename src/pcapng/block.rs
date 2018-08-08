@@ -71,7 +71,7 @@ impl<R: Read + Seek> ReadFileHeader for R {
 
         let block_type = NativeEndian::read_u32(&buf[..4]);
 
-        if block_type != SectionHeader::block_type() {
+        if block_type != SectionHeader::block_type() as u32 {
             bail!("file MUST begin with a Section Header Block.")
         }
 

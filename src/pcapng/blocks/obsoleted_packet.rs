@@ -11,8 +11,8 @@ pub use super::enhanced_packet::{
 };
 use super::timestamp::{self, Timestamp};
 use errors::{PcapError, Result};
-use pcapng::block::Block;
 use pcapng::options::{pad_to, parse_options, Options};
+use pcapng::{Block, BlockType};
 use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0000_0002;
@@ -37,8 +37,8 @@ pub struct ObsoletedPacket<'a> {
 }
 
 impl<'a> ObsoletedPacket<'a> {
-    pub fn block_type() -> u32 {
-        BLOCK_TYPE
+    pub fn block_type() -> BlockType {
+        BlockType::ObsoletedPacket
     }
 
     pub fn size(&self) -> usize {
@@ -142,8 +142,12 @@ impl<'a> WriteTo for ObsoletedPacket<'a> {
 }
 
 impl<'a> Block<'a> {
+    pub fn is_obsoleted_packet(&self) -> bool {
+        self.ty == BLOCK_TYPE
+    }
+
     pub fn as_obsoleted_packet(&'a self, endianness: Endianness) -> Option<ObsoletedPacket<'a>> {
-        if self.ty == ObsoletedPacket::block_type() {
+        if self.is_obsoleted_packet() {
             ObsoletedPacket::parse(&self.body, endianness)
                 .map(|(_, packet)| packet)
                 .map_err(|err| {

@@ -33,7 +33,7 @@ pub use self::simple_packet::SimplePacket;
 pub use self::timestamp::Timestamp;
 
 #[repr(u32)]
-#[derive(Clone, Copy, Debug, FromPrimitive, ToPrimitive)]
+#[derive(Clone, Copy, Debug, PartialEq, FromPrimitive, ToPrimitive)]
 pub enum BlockType {
     CustomBlock = self::custom::BLOCK_TYPE,
     PrivateCustomBlock = self::custom::PRIVATE_BLOCK_TYPE,
@@ -44,4 +44,10 @@ pub enum BlockType {
     ObsoletedPacket = self::obsoleted_packet::BLOCK_TYPE,
     SectionHeader = self::section_header::BLOCK_TYPE,
     SimplePacket = self::simple_packet::BLOCK_TYPE,
+}
+
+impl PartialEq<u32> for BlockType {
+    fn eq(&self, other: &u32) -> bool {
+        *self as u32 == *other
+    }
 }

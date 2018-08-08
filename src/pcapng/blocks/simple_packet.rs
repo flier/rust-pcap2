@@ -7,8 +7,8 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
-use pcapng::block::Block;
 use pcapng::options::pad_to;
+use pcapng::{Block, BlockType};
 use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0000_0003;
@@ -23,8 +23,8 @@ pub struct SimplePacket<'a> {
 }
 
 impl<'a> SimplePacket<'a> {
-    pub fn block_type() -> u32 {
-        BLOCK_TYPE
+    pub fn block_type() -> BlockType {
+        BlockType::SimplePacket
     }
 
     pub fn size(&self) -> usize {
@@ -79,8 +79,12 @@ impl<'a> WriteTo for SimplePacket<'a> {
 }
 
 impl<'a> Block<'a> {
+    pub fn is_simple_packet(&self) -> bool {
+        self.ty == BLOCK_TYPE
+    }
+
     pub fn as_simple_packet(&'a self, endianness: Endianness) -> Option<SimplePacket<'a>> {
-        if self.ty == SimplePacket::block_type() {
+        if self.is_simple_packet() {
             SimplePacket::parse(&self.body, endianness)
                 .map(|(_, packet)| packet)
                 .map_err(|err| {

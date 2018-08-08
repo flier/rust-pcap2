@@ -6,9 +6,9 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
-use pcapng::block::Block;
 use pcapng::blocks::timestamp::{self, Timestamp};
 use pcapng::options::{pad_to, parse_options, Opt, Options};
+use pcapng::{Block, BlockType};
 use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0000_0006;
@@ -83,8 +83,8 @@ pub struct EnhancedPacket<'a> {
 }
 
 impl<'a> EnhancedPacket<'a> {
-    pub fn block_type() -> u32 {
-        BLOCK_TYPE
+    pub fn block_type() -> BlockType {
+        BlockType::EnhancedPacket
     }
 
     pub fn size(&self) -> usize {
@@ -191,8 +191,11 @@ impl<'a> WriteTo for EnhancedPacket<'a> {
 }
 
 impl<'a> Block<'a> {
+    pub fn is_enhanced_packet(&self) -> bool {
+        self.ty == BLOCK_TYPE
+    }
     pub fn as_enhanced_packet(&'a self, endianness: Endianness) -> Option<EnhancedPacket<'a>> {
-        if self.ty == EnhancedPacket::block_type() {
+        if self.is_enhanced_packet() {
             EnhancedPacket::parse(&self.body, endianness)
                 .map(|(_, packet)| packet)
                 .map_err(|err| {
