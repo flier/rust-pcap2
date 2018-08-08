@@ -98,7 +98,7 @@ impl<'a> Block<'a> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use byteorder::LittleEndian;
 
     use super::*;

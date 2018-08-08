@@ -12,7 +12,9 @@ use traits::WriteTo;
 
 pub const BLOCK_TYPE: u32 = 0x0A0D_0D0A;
 
-pub const MAGIC: u32 = 0x1A2B_3C4D;
+pub const BYTE_ORDER_MAGIC: u32 = 0x1A2B_3C4D;
+pub const BYTE_ORDER_MAGIC_LE: &[u8] = b"\x4D\x3C\x2B\x1A";
+pub const BYTE_ORDER_MAGIC_BE: &[u8] = b"\x1A\x2B\x3C\x4D";
 
 pub const DEFAULT_MAJOR_VERSION: u16 = 1;
 pub const DEFAULT_MINOR_VERSION: u16 = 0;
@@ -59,7 +61,7 @@ pub struct SectionHeader<'a> {
 impl<'a> Default for SectionHeader<'a> {
     fn default() -> Self {
         SectionHeader {
-            magic: MAGIC,
+            magic: BYTE_ORDER_MAGIC,
             major_version: DEFAULT_MAJOR_VERSION,
             minor_version: DEFAULT_MINOR_VERSION,
             section_length: None,
@@ -129,7 +131,7 @@ impl<'a> SectionHeader<'a> {
 ///    +---------------------------------------------------------------+
 named_args!(parse_section_header(endianness: Endianness)<SectionHeader>,
     do_parse!(
-        magic: verify!(u32!(endianness), |ty| ty == MAGIC) >>
+        magic: verify!(u32!(endianness), |ty| ty == BYTE_ORDER_MAGIC) >>
         major_version: u16!(endianness) >>
         minor_version: u16!(endianness) >>
         section_length: i64!(endianness) >>
@@ -159,6 +161,10 @@ impl<'a> WriteTo for SectionHeader<'a> {
 }
 
 impl<'a> Block<'a> {
+    pub fn is_section_header(&self) -> bool {
+        self.ty == BLOCK_TYPE
+    }
+
     pub fn as_section_header(&'a self, endianness: Endianness) -> Option<SectionHeader<'a>> {
         if self.ty == SectionHeader::block_type() {
             SectionHeader::parse(&self.body, endianness)
@@ -178,7 +184,7 @@ impl<'a> Block<'a> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use byteorder::LittleEndian;
 
     use super::*;
@@ -194,7 +200,7 @@ mod tests {
 
     lazy_static! {
         static ref SECTION_HEADER: SectionHeader<'static> = SectionHeader {
-            magic: MAGIC,
+            magic: BYTE_ORDER_MAGIC,
             major_version: DEFAULT_MAJOR_VERSION,
             minor_version: DEFAULT_MINOR_VERSION,
             section_length: None,

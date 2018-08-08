@@ -127,8 +127,8 @@ mod parse {
 
     enum State<'a> {
         Init(&'a [u8]),
-        Parsed(&'a [u8], Endianness, i32, bool),
-        Finished,
+        Parsing(&'a [u8], Endianness, i32, bool),
+        Done,
     }
 
     impl<'a> Iterator for Packets<'a> {
@@ -142,24 +142,24 @@ mod parse {
                             if let Ok((remaining, file_header)) = FileHeader::parse(remaining) {
                                 let magic = file_header.magic();
 
-                                State::Parsed(
+                                State::Parsing(
                                     remaining,
                                     magic.endianness(),
                                     file_header.thiszone,
                                     magic.is_nanosecond_resolution(),
                                 )
                             } else {
-                                State::Finished
+                                State::Done
                             }
                     }
-                    State::Parsed(
+                    State::Parsing(
                         mut remaining,
                         endianness,
                         utc_offset,
                         is_nanosecond_resolution,
                     ) => {
                         if let Ok(packet) = remaining.read_packet(endianness) {
-                            self.state = State::Parsed(
+                            self.state = State::Parsing(
                                 remaining,
                                 endianness,
                                 utc_offset,
@@ -173,9 +173,9 @@ mod parse {
                             )));
                         }
 
-                        self.state = State::Finished;
+                        self.state = State::Done;
                     }
-                    State::Finished => return None,
+                    State::Done => return None,
                 }
             }
         }
@@ -221,13 +221,13 @@ mod read {
 
     enum State<R> {
         Init(BufReader<R>),
-        Parsed(BufReader<R>, Endianness, i32, bool),
-        Finished,
+        Parsing(BufReader<R>, Endianness, i32, bool),
+        Done,
     }
 
     impl<R> Default for State<R> {
         fn default() -> Self {
-            State::Finished
+            State::Done
         }
     }
 
@@ -251,19 +251,24 @@ mod read {
                                 .map(|(_, file_header)| {
                                     let magic = file_header.magic();
 
-                                    State::Parsed(
+                                    State::Parsing(
                                         reader,
                                         magic.endianness(),
                                         file_header.thiszone,
                                         magic.is_nanosecond_resolution(),
                                     )
                                 })
-                                .unwrap_or(State::Finished),
+                                .unwrap_or(State::Done),
                         );
                     }
-                    State::Parsed(mut reader, endianness, utc_offset, is_nanosecond_resolution) => {
+                    State::Parsing(
+                        mut reader,
+                        endianness,
+                        utc_offset,
+                        is_nanosecond_resolution,
+                    ) => {
                         if let Ok(packet) = reader.read_packet(endianness) {
-                            self.state = Cell::new(State::Parsed(
+                            self.state = Cell::new(State::Parsing(
                                 reader,
                                 endianness,
                                 utc_offset,
@@ -277,7 +282,7 @@ mod read {
                             )));
                         }
                     }
-                    State::Finished => {
+                    State::Done => {
                         return None;
                     }
                 }

@@ -1,17 +1,23 @@
 use std::borrow::Cow;
-use std::io::Write;
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::mem;
 
-use byteorder::{ByteOrder, WriteBytesExt};
+use byteorder::{ByteOrder, NativeEndian, ReadBytesExt, WriteBytesExt};
 use nom::*;
+use num_traits::FromPrimitive;
 
 use errors::{PcapError, Result};
+use pcapng::blocks::{
+    section_header::{SectionHeader, BYTE_ORDER_MAGIC_BE, BYTE_ORDER_MAGIC_LE},
+    BlockType,
+};
 use pcapng::options::pad_to;
 use traits::WriteTo;
 
 pub const BLOCK_HEADER_SIZE: usize = mem::size_of::<u32>() * 2;
 pub const BLOCK_TRAILER_SIZE: usize = mem::size_of::<u32>();
-pub const MIN_BLOCK_SIZE: u32 = (BLOCK_HEADER_SIZE + BLOCK_TRAILER_SIZE) as u32;
+pub const BLOCK_OVERHEAD_SIZE: usize = BLOCK_HEADER_SIZE + BLOCK_TRAILER_SIZE;
+pub const MIN_BLOCK_SIZE: u32 = BLOCK_OVERHEAD_SIZE as u32;
 pub const MAX_BLOCK_SIZE: u32 = 16 * 1024 * 1024;
 
 /// Public representation of a parsed block
@@ -31,12 +37,92 @@ impl<'a> Block<'a> {
         }
     }
 
+    pub fn min_size() -> usize {
+        MIN_BLOCK_SIZE as usize
+    }
+
+    pub fn max_size() -> usize {
+        MAX_BLOCK_SIZE as usize
+    }
+
+    pub fn block_type(&self) -> Option<BlockType> {
+        BlockType::from_u32(self.ty)
+    }
+
     pub fn size(&self) -> usize {
         BLOCK_HEADER_SIZE + pad_to::<u32>(self.body.len()) + BLOCK_TRAILER_SIZE
     }
 
     pub fn parse(buf: &'a [u8], endianness: Endianness) -> Result<(&[u8], Self)> {
         parse_block(buf, endianness).map_err(|err| PcapError::from(err).into())
+    }
+}
+
+pub trait ReadFileHeader {
+    fn read_file_header(&mut self) -> Result<Endianness>;
+}
+
+impl<R: Read + Seek> ReadFileHeader for R {
+    fn read_file_header(&mut self) -> Result<Endianness> {
+        let mut buf = [0; 12];
+
+        self.read_exact(&mut buf)?;
+        self.seek(SeekFrom::Current(-(buf.len() as i64)))?;
+
+        let block_type = NativeEndian::read_u32(&buf[..4]);
+
+        if block_type != SectionHeader::block_type() {
+            bail!("file MUST begin with a Section Header Block.")
+        }
+
+        let byte_order_magic = &buf[8..12];
+
+        if byte_order_magic == BYTE_ORDER_MAGIC_LE {
+            Ok(Endianness::Little)
+        } else if byte_order_magic == BYTE_ORDER_MAGIC_BE {
+            Ok(Endianness::Big)
+        } else {
+            bail!("unkwnon byte order magic word: {:?}", byte_order_magic)
+        }
+    }
+}
+
+pub trait ReadBlock {
+    fn read_block<'a, T: ByteOrder>(&mut self) -> Result<Block<'a>>;
+}
+
+impl<R: Read> ReadBlock for R {
+    fn read_block<'a, T: ByteOrder>(&mut self) -> Result<Block<'a>> {
+        let block_type = self.read_u32::<T>()?;
+        let block_len = self.read_u32::<T>()? as usize;
+
+        if block_len < Block::min_size() {
+            bail!("block too small, {}", block_len);
+        }
+        if block_len > Block::max_size() {
+            bail!("block too large, {}", block_len);
+        }
+
+        let mut buf = vec![0; pad_to::<u32>(block_len - BLOCK_OVERHEAD_SIZE)];
+
+        self.read_exact(&mut buf)?;
+
+        let check_len = self.read_u32::<T>()? as usize;
+
+        if check_len != block_len {
+            debug!("block body:\n{}", hexdump!(buf));
+
+            bail!(
+                "block check length mismatch, block_len = {}, check_len {}",
+                block_len,
+                check_len
+            );
+        }
+
+        Ok(Block {
+            ty: block_type,
+            body: buf.into(),
+        })
     }
 }
 
@@ -56,7 +142,7 @@ named_args!(parse_block(endianness: Endianness)<Block>,
     dbg_dmp!(do_parse!(
         ty: u32!(endianness) >>
         block_len: verify!(u32!(endianness), |n| MIN_BLOCK_SIZE <= n && n <= MAX_BLOCK_SIZE) >>
-        body: map!(take!(block_len as usize - BLOCK_HEADER_SIZE - BLOCK_TRAILER_SIZE), Cow::from) >>
+        body: map!(take!(block_len as usize - BLOCK_OVERHEAD_SIZE), Cow::from) >>
         _check_len: verify!(u32!(endianness), |n| n == block_len) >>
         (
             Block { ty, body }

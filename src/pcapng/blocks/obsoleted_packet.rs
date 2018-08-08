@@ -161,14 +161,14 @@ impl<'a> Block<'a> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use byteorder::LittleEndian;
 
     use super::*;
     use pcapng::blocks::enhanced_packet::{HASH_ALGO_CRC32, HASH_ALGO_MD5};
     use pcapng::Block;
 
-    pub const LE_ENHANCED_PACKET: &[u8] = b"\x02\x00\x00\x00\
+    pub const LE_OBSOLETED_PACKET: &[u8] = b"\x02\x00\x00\x00\
 \x64\x00\x00\x00\
 \x00\x00\xFF\xFF\
 \x6A\x72\x05\x00\xC1\x6A\x96\x80\
@@ -182,7 +182,7 @@ mod tests {
 \x64\x00\x00\x00";
 
     lazy_static! {
-        static ref ENHANCED_PACKET: ObsoletedPacket<'static> = ObsoletedPacket {
+        static ref OBSOLETED_PACKET: ObsoletedPacket<'static> = ObsoletedPacket {
             interface_id: 0,
             drops_count: None,
             timestamp: 0x05726a80966ac1,
@@ -201,29 +201,29 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        let (remaining, block) = Block::parse(LE_ENHANCED_PACKET, Endianness::Little).unwrap();
+        let (remaining, block) = Block::parse(LE_OBSOLETED_PACKET, Endianness::Little).unwrap();
 
         assert_eq!(remaining, b"");
         assert_eq!(block.ty, BLOCK_TYPE);
-        assert_eq!(block.size(), LE_ENHANCED_PACKET.len());
+        assert_eq!(block.size(), LE_OBSOLETED_PACKET.len());
 
         let obsoleted_packet = block.as_obsoleted_packet(Endianness::Little).unwrap();
 
-        assert_eq!(obsoleted_packet, *ENHANCED_PACKET);
+        assert_eq!(obsoleted_packet, *OBSOLETED_PACKET);
     }
 
     #[test]
     fn test_write() {
         let mut buf = vec![];
 
-        let wrote = ENHANCED_PACKET
+        let wrote = OBSOLETED_PACKET
             .write_to::<LittleEndian, _>(&mut buf)
             .unwrap();
 
-        assert_eq!(wrote, ENHANCED_PACKET.size());
+        assert_eq!(wrote, OBSOLETED_PACKET.size());
         assert_eq!(
             buf.as_slice(),
-            &LE_ENHANCED_PACKET[8..LE_ENHANCED_PACKET.len() - 4]
+            &LE_OBSOLETED_PACKET[8..LE_OBSOLETED_PACKET.len() - 4]
         );
     }
 

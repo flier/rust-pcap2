@@ -310,6 +310,10 @@ impl<'a> WriteTo for InterfaceDescription<'a> {
 }
 
 impl<'a> Block<'a> {
+    pub fn is_interface_description(&self) -> bool {
+        self.ty == BLOCK_TYPE
+    }
+
     pub fn as_interface_description(
         &'a self,
         endianness: Endianness,
@@ -332,7 +336,7 @@ impl<'a> Block<'a> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use byteorder::LittleEndian;
 
     use super::*;
@@ -340,16 +344,15 @@ mod tests {
     use LinkType;
 
     pub const LE_INTERFACE_DESCRIPTION: &[u8] = b"\x01\x00\x00\x00\
-\x64\x00\x00\x00\
+\x5C\x00\x00\x00\
 \x01\x00\
 \x00\x00\
 \x00\x00\x08\x00\
 \x02\x00\x03\x00en0\x00\
 \x09\x00\x01\x00\x06\x00\x00\x00\
-\x09\x00\x01\x00\x8A\x00\x00\x00\
 \x0C\x00\x2D\x00Mac OS X 10.13.6, build 17G65 (Darwin 17.7.0)\x00\x00\x00\
 \x00\x00\x00\x00\
-\x64\x00\x00\x00";
+\x5C\x00\x00\x00";
 
     lazy_static! {
         static ref INTERFACE_DESCRIPTION: InterfaceDescription<'static> = InterfaceDescription {
@@ -359,7 +362,6 @@ mod tests {
             options: vec![
                 if_name("en0"),
                 if_tsresol(1000000),
-                if_tsresol(1024),
                 if_os("Mac OS X 10.13.6, build 17G65 (Darwin 17.7.0)"),
             ],
         };
@@ -408,7 +410,7 @@ mod tests {
                 if_macaddr([0x00, 0x01, 0x02, 0x03, 0x04, 0x05]),
                 if_euiaddr([0x02, 0x34, 0x56, 0xFF, 0xFE, 0x78, 0x9A, 0xBC]),
                 if_speed::<LittleEndian>(100000000),
-                if_tsresol(1000),
+                if_tsresol(1024),
                 if_tzone::<LittleEndian>(8),
                 if_filter("tcp port 23 and host 192.0.2.5"),
                 if_os("Mac OS X 10.13.6, build 17G65 (Darwin 17.7.0)"),
@@ -451,7 +453,7 @@ mod tests {
             interface_description.speed::<LittleEndian>().unwrap(),
             100000000
         );
-        assert_eq!(interface_description.tsresol().unwrap(), 1000);
+        assert_eq!(interface_description.tsresol().unwrap(), 1024);
         assert_eq!(interface_description.tzone::<LittleEndian>().unwrap(), 8);
         assert_eq!(
             interface_description.filter().unwrap(),

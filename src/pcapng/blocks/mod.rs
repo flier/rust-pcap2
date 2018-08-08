@@ -26,6 +26,22 @@ pub use self::name_resolution::{
     NameResolution,
 };
 pub use self::obsoleted_packet::{pack_flags, pack_hash, ObsoletedPacket};
-pub use self::section_header::{shb_hardware, shb_os, shb_userappl, SectionHeader};
+pub use self::section_header::{
+    shb_hardware, shb_os, shb_userappl, SectionHeader, BYTE_ORDER_MAGIC,
+};
 pub use self::simple_packet::SimplePacket;
 pub use self::timestamp::Timestamp;
+
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, FromPrimitive, ToPrimitive)]
+pub enum BlockType {
+    CustomBlock = self::custom::BLOCK_TYPE,
+    PrivateCustomBlock = self::custom::PRIVATE_BLOCK_TYPE,
+    EnhancedPacket = self::enhanced_packet::BLOCK_TYPE,
+    InterfaceDescription = self::interface_description::BLOCK_TYPE,
+    InterfaceStatistics = self::interface_statistics::BLOCK_TYPE,
+    NameResolution = self::name_resolution::BLOCK_TYPE,
+    ObsoletedPacket = self::obsoleted_packet::BLOCK_TYPE,
+    SectionHeader = self::section_header::BLOCK_TYPE,
+    SimplePacket = self::simple_packet::BLOCK_TYPE,
+}
