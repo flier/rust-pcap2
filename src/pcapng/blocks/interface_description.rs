@@ -26,6 +26,8 @@ pub const IF_OS: u16 = 12;
 pub const IF_FCSLEN: u16 = 13;
 pub const IF_TSOFFSET: u16 = 14;
 
+pub const DEFAULT_TIMESTAMP_RESOLUTION: u64 = 100_0000;
+
 /// This option is a UTF-8 string containing the name of the device used to capture data.
 pub fn if_name<T: AsRef<str> + ?Sized>(value: &T) -> Opt {
     opt(IF_NAME, value.as_ref())
@@ -74,13 +76,13 @@ pub fn if_speed<'a, T: ByteOrder>(value: u64) -> Opt<'a> {
 }
 
 /// This option identifies the resolution of timestamps.
-pub fn if_tsresol<'a>(resolution: i8) -> Opt<'a> {
+pub fn if_tsresol<'a>(resolution: u64) -> Opt<'a> {
     Opt::new(
         IF_TSRESOL,
-        vec![if resolution < 0 {
-            (resolution.abs() as u8) | 0x80
+        vec![if resolution.is_power_of_two() {
+            (resolution.trailing_zeros() as u8) | 0x80
         } else {
-            resolution as u8
+            (resolution as f64).log10().round() as u8
         }],
     )
 }
@@ -199,7 +201,7 @@ impl<'a> InterfaceDescription<'a> {
             .map(|opt| T::read_u64(&opt.value))
     }
 
-    pub fn tsresol(&self) -> Option<i8> {
+    pub fn tsresol(&self) -> Option<u64> {
         self.options
             .iter()
             .find(|opt| opt.code == IF_TSRESOL && opt.value.len() == 1)
@@ -207,9 +209,21 @@ impl<'a> InterfaceDescription<'a> {
                 let n = opt.value[0];
 
                 if (n & 0x80) == 0x80 {
-                    -((n & 0x7F) as i8)
+                    let tsresol_shift = n & 0x7F;
+
+                    if tsresol_shift < 64 {
+                        1 << tsresol_shift
+                    } else {
+                        DEFAULT_TIMESTAMP_RESOLUTION
+                    }
                 } else {
-                    n as i8
+                    let tsresol_opt = n as i8;
+
+                    if tsresol_opt < 20 {
+                        10u64.pow(tsresol_opt as u32)
+                    } else {
+                        DEFAULT_TIMESTAMP_RESOLUTION
+                    }
                 }
             })
     }
@@ -326,15 +340,16 @@ mod tests {
     use LinkType;
 
     pub const LE_INTERFACE_DESCRIPTION: &[u8] = b"\x01\x00\x00\x00\
-\x5C\x00\x00\x00\
+\x64\x00\x00\x00\
 \x01\x00\
 \x00\x00\
 \x00\x00\x08\x00\
 \x02\x00\x03\x00en0\x00\
 \x09\x00\x01\x00\x06\x00\x00\x00\
+\x09\x00\x01\x00\x8A\x00\x00\x00\
 \x0C\x00\x2D\x00Mac OS X 10.13.6, build 17G65 (Darwin 17.7.0)\x00\x00\x00\
 \x00\x00\x00\x00\
-\x5C\x00\x00\x00";
+\x64\x00\x00\x00";
 
     lazy_static! {
         static ref INTERFACE_DESCRIPTION: InterfaceDescription<'static> = InterfaceDescription {
@@ -343,7 +358,8 @@ mod tests {
             snap_len: 0x080000,
             options: vec![
                 if_name("en0"),
-                if_tsresol(6),
+                if_tsresol(1000000),
+                if_tsresol(1024),
                 if_os("Mac OS X 10.13.6, build 17G65 (Darwin 17.7.0)"),
             ],
         };
@@ -392,7 +408,7 @@ mod tests {
                 if_macaddr([0x00, 0x01, 0x02, 0x03, 0x04, 0x05]),
                 if_euiaddr([0x02, 0x34, 0x56, 0xFF, 0xFE, 0x78, 0x9A, 0xBC]),
                 if_speed::<LittleEndian>(100000000),
-                if_tsresol(-6),
+                if_tsresol(1000),
                 if_tzone::<LittleEndian>(8),
                 if_filter("tcp port 23 and host 192.0.2.5"),
                 if_os("Mac OS X 10.13.6, build 17G65 (Darwin 17.7.0)"),
@@ -435,7 +451,7 @@ mod tests {
             interface_description.speed::<LittleEndian>().unwrap(),
             100000000
         );
-        assert_eq!(interface_description.tsresol().unwrap(), -6);
+        assert_eq!(interface_description.tsresol().unwrap(), 1000);
         assert_eq!(interface_description.tzone::<LittleEndian>().unwrap(), 8);
         assert_eq!(
             interface_description.filter().unwrap(),
