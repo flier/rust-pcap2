@@ -194,6 +194,7 @@ impl<'a> Block<'a> {
     pub fn is_enhanced_packet(&self) -> bool {
         self.ty == BLOCK_TYPE
     }
+
     pub fn as_enhanced_packet(&'a self, endianness: Endianness) -> Option<EnhancedPacket<'a>> {
         if self.is_enhanced_packet() {
             EnhancedPacket::parse(&self.body, endianness)

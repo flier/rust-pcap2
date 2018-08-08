@@ -5,9 +5,11 @@ use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
 use memmap::Mmap;
+use nom::Endianness;
 
 use errors::Result;
-use pcapng::{Block, Packet};
+use pcapng::{Block, BlockType, Packet};
+use traits::ToEndianness;
 
 /// Open a file as a stream in read-only mode.
 pub fn open<'a, P: AsRef<Path>>(path: P) -> Result<Reader<'a, BufReader<File>>> {
@@ -50,32 +52,6 @@ impl<'a, R: 'a> Reader<'a, R> {
     }
 }
 
-impl<'a, T> Reader<'a, Cursor<T>>
-where
-    T: AsRef<[u8]>,
-{
-    pub fn blocks(&'a self) -> ParseBlocks<'a> {
-        ParseBlocks::new(self.r.get_ref())
-    }
-
-    pub fn sections(&'a self) -> Sections<'a, ParseBlocks<'a>> {
-        Sections { r: self.blocks() }
-    }
-}
-
-impl<'a, R> Reader<'a, BufReader<R>>
-where
-    R: Read + Seek,
-{
-    pub fn blocks(self) -> ReadBlocks<'a, R> {
-        ReadBlocks::new(self.r)
-    }
-
-    pub fn sections(self) -> Sections<'a, ReadBlocks<'a, R>> {
-        Sections { r: self.blocks() }
-    }
-}
-
 impl<'a, R> Deref for Reader<'a, R> {
     type Target = R;
 
@@ -90,12 +66,45 @@ impl<'a, R> DerefMut for Reader<'a, R> {
     }
 }
 
-impl<'a, R> IntoIterator for Reader<'a, R> {
-    type Item = <Packets<'a, R> as Iterator>::Item;
-    type IntoIter = Packets<'a, R>;
+impl<'a, T> Reader<'a, Cursor<T>>
+where
+    T: AsRef<[u8]>,
+{
+    pub fn blocks(&'a self) -> ParseBlocks<'a> {
+        ParseBlocks::new(self.r.get_ref())
+    }
+}
+
+impl<'a, R> Reader<'a, BufReader<R>>
+where
+    R: Read + Seek,
+{
+    pub fn blocks(self) -> ReadBlocks<'a, R> {
+        ReadBlocks::new(self.r)
+    }
+}
+
+impl<'a, T> IntoIterator for &'a Reader<'a, Cursor<T>>
+where
+    T: AsRef<[u8]>,
+{
+    type Item = <Self::IntoIter as Iterator>::Item;
+    type IntoIter = Packets<'a, Self>;
 
     fn into_iter(self) -> Self::IntoIter {
-        Packets { r: self }
+        Packets::new(self)
+    }
+}
+
+impl<'a, R> IntoIterator for Reader<'a, BufReader<R>>
+where
+    R: Read + Seek,
+{
+    type Item = <Self::IntoIter as Iterator>::Item;
+    type IntoIter = Packets<'a, Self>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Packets::new(self)
     }
 }
 
@@ -108,6 +117,7 @@ mod parse {
 
     use pcapng::block::ReadFileHeader;
     use pcapng::Block;
+    use traits::ToEndianness;
 
     pub struct Blocks<'a> {
         state: State<'a>,
@@ -117,6 +127,16 @@ mod parse {
         pub fn new<T: AsRef<[u8]>>(buf: &'a T) -> Blocks<'a> {
             Blocks {
                 state: State::Init(buf.as_ref()),
+            }
+        }
+    }
+
+    impl<'a> ToEndianness for Blocks<'a> {
+        fn endianness(&self) -> Option<Endianness> {
+            if let State::Parsing(_, endianess) = self.state {
+                Some(endianess)
+            } else {
+                None
             }
         }
     }
@@ -194,6 +214,7 @@ mod read {
 
     use super::*;
     use pcapng::block::{ReadBlock, ReadFileHeader};
+    use traits::ToEndianness;
 
     pub struct Blocks<'a, R: 'a> {
         state: Cell<State<R>>,
@@ -217,6 +238,16 @@ mod read {
             Blocks {
                 state: Cell::new(State::Init(reader)),
                 phantom: PhantomData,
+            }
+        }
+    }
+
+    impl<'a, R> ToEndianness for Blocks<'a, R> {
+        fn endianness(&self) -> Option<Endianness> {
+            if let State::Parsing(_, endianess) = unsafe { &*self.state.as_ptr() } {
+                Some(*endianess)
+            } else {
+                None
             }
         }
     }
@@ -280,15 +311,18 @@ mod read {
     }
 }
 
-pub struct Sections<'a, R>
-where
-    R: IntoIterator<Item = Block<'a>>,
-{
+pub struct Packets<'a, R: 'a> {
     r: R,
+    phantom: PhantomData<&'a R>,
 }
 
-pub struct Packets<'a, R: 'a> {
-    r: Reader<'a, R>,
+impl<'a, R> Packets<'a, R> {
+    pub fn new(r: R) -> Packets<'a, R> {
+        Packets {
+            r: r,
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<'a, R> Iterator for Packets<'a, R> {

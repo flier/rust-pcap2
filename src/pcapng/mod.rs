@@ -11,6 +11,4 @@ pub use self::options::{
     Opt, Options,
 };
 pub use self::packet::Packet;
-pub use self::reader::{
-    mmap, open, parse, read, Packets, ParseBlocks, ReadBlocks, Reader, Sections,
-};
+pub use self::reader::{mmap, open, parse, read, Packets, ParseBlocks, ReadBlocks, Reader};

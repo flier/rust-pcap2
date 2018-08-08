@@ -21,6 +21,10 @@ impl AsEndianness for BigEndian {
     }
 }
 
+pub trait ToEndianness {
+    fn endianness(&self) -> Option<Endianness>;
+}
+
 pub trait WriteTo {
     fn write_to<T: ByteOrder, W: Write>(&self, w: &mut W) -> Result<usize>;
 }
