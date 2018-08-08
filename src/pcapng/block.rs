@@ -9,24 +9,12 @@ use errors::{PcapError, Result};
 use pcapng::options::pad_to;
 use traits::WriteTo;
 
-pub const MIN_BLOCK_SIZE: u32 = (mem::size_of::<u32>() * 3) as u32;
+pub const BLOCK_HEADER_SIZE: usize = mem::size_of::<u32>() * 2;
+pub const BLOCK_TRAILER_SIZE: usize = mem::size_of::<u32>();
+pub const MIN_BLOCK_SIZE: u32 = (BLOCK_HEADER_SIZE + BLOCK_TRAILER_SIZE) as u32;
 pub const MAX_BLOCK_SIZE: u32 = 16 * 1024 * 1024;
 
 /// Public representation of a parsed block
-///
-///
-///  0                   1                   2                   3
-///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-///  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///  |                          Block Type                           |
-///  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///  |                      Block Total Length                       |
-///  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///  /                          Block Body                           /
-///  /          /* variable length, aligned to 32 bits */            /
-///  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///  |                      Block Total Length                       |
-///  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Block<'a> {
     /// unique value that identifies the block.
@@ -44,7 +32,7 @@ impl<'a> Block<'a> {
     }
 
     pub fn size(&self) -> usize {
-        mem::size_of::<u32>() * 3 + pad_to::<u32>(self.body.len())
+        BLOCK_HEADER_SIZE + pad_to::<u32>(self.body.len()) + BLOCK_TRAILER_SIZE
     }
 
     pub fn parse(buf: &'a [u8], endianness: Endianness) -> Result<(&[u8], Self)> {
@@ -52,11 +40,23 @@ impl<'a> Block<'a> {
     }
 }
 
+///  0                   1                   2                   3
+///  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+///  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+///  |                          Block Type                           |
+///  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+///  |                      Block Total Length                       |
+///  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+///  /                          Block Body                           /
+///  /          /* variable length, aligned to 32 bits */            /
+///  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+///  |                      Block Total Length                       |
+///  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 named_args!(parse_block(endianness: Endianness)<Block>,
     dbg_dmp!(do_parse!(
         ty: u32!(endianness) >>
         block_len: verify!(u32!(endianness), |n| MIN_BLOCK_SIZE <= n && n <= MAX_BLOCK_SIZE) >>
-        body: map!(take!(block_len as usize - mem::size_of::<u32>() * 3), Cow::from) >>
+        body: map!(take!(block_len as usize - BLOCK_HEADER_SIZE - BLOCK_TRAILER_SIZE), Cow::from) >>
         _check_len: verify!(u32!(endianness), |n| n == block_len) >>
         (
             Block { ty, body }
