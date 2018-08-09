@@ -5,11 +5,9 @@ use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
 use memmap::Mmap;
-use nom::Endianness;
 
 use errors::Result;
-use pcapng::{Block, BlockType, Packet};
-use traits::ToEndianness;
+use pcapng::{Block, Packet};
 
 /// Open a file as a stream in read-only mode.
 pub fn open<'a, P: AsRef<Path>>(path: P) -> Result<Reader<'a, BufReader<File>>> {
@@ -115,8 +113,7 @@ mod parse {
 
     use nom::Endianness;
 
-    use pcapng::block::ReadFileHeader;
-    use pcapng::Block;
+    use pcapng::{Block, SectionHeader};
     use traits::ToEndianness;
 
     pub struct Blocks<'a> {
@@ -148,7 +145,7 @@ mod parse {
             loop {
                 match self.state {
                     State::Init(remaining) => {
-                        match Cursor::new(remaining).read_file_header() {
+                        match SectionHeader::peek_endianness(&mut Cursor::new(remaining)) {
                             Ok(endianess) => {
                                 self.state = State::Parsing(remaining, endianess);
 
@@ -213,7 +210,8 @@ mod read {
     use nom::Endianness;
 
     use super::*;
-    use pcapng::block::{ReadBlock, ReadFileHeader};
+    use pcapng::block::ReadBlock;
+    use pcapng::SectionHeader;
     use traits::ToEndianness;
 
     pub struct Blocks<'a, R: 'a> {
@@ -261,7 +259,7 @@ mod read {
         fn next(&mut self) -> Option<Self::Item> {
             loop {
                 match self.state.take() {
-                    State::Init(mut reader) => match reader.read_file_header() {
+                    State::Init(mut reader) => match SectionHeader::peek_endianness(&mut reader) {
                         Ok(endianess) => {
                             self.state = Cell::new(State::Parsing(reader, endianess));
 

@@ -1,8 +1,8 @@
-use std::io::Write;
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::mem;
 use std::str;
 
-use byteorder::{ByteOrder, WriteBytesExt};
+use byteorder::{ByteOrder, NativeEndian, WriteBytesExt};
 use nom::*;
 
 use errors::{PcapError, Result};
@@ -105,6 +105,29 @@ impl<'a> SectionHeader<'a> {
             .iter()
             .find(|opt| opt.code == SHB_USERAPPL)
             .and_then(|opt| opt.as_str())
+    }
+
+    pub fn peek_endianness<R: Read + Seek>(r: &mut R) -> Result<Endianness> {
+        let mut buf = [0; 12];
+
+        r.read_exact(&mut buf)?;
+        r.seek(SeekFrom::Current(-(buf.len() as i64)))?;
+
+        let block_type = NativeEndian::read_u32(&buf[..4]);
+
+        if block_type != SectionHeader::block_type() as u32 {
+            bail!("file MUST begin with a Section Header Block.")
+        }
+
+        let byte_order_magic = &buf[8..12];
+
+        if byte_order_magic == BYTE_ORDER_MAGIC_LE {
+            Ok(Endianness::Little)
+        } else if byte_order_magic == BYTE_ORDER_MAGIC_BE {
+            Ok(Endianness::Big)
+        } else {
+            bail!("unkwnon byte order magic word: {:?}", byte_order_magic)
+        }
     }
 }
 

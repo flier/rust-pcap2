@@ -1,16 +1,13 @@
 use std::borrow::Cow;
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Write};
 use std::mem;
 
-use byteorder::{ByteOrder, NativeEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{ByteOrder, ReadBytesExt, WriteBytesExt};
 use nom::*;
 use num_traits::FromPrimitive;
 
 use errors::{PcapError, Result};
-use pcapng::blocks::{
-    section_header::{SectionHeader, BYTE_ORDER_MAGIC_BE, BYTE_ORDER_MAGIC_LE},
-    BlockType,
-};
+use pcapng::blocks::BlockType;
 use pcapng::options::pad_to;
 use traits::WriteTo;
 
@@ -55,35 +52,6 @@ impl<'a> Block<'a> {
 
     pub fn parse(buf: &'a [u8], endianness: Endianness) -> Result<(&[u8], Self)> {
         parse_block(buf, endianness).map_err(|err| PcapError::from(err).into())
-    }
-}
-
-pub trait ReadFileHeader {
-    fn read_file_header(&mut self) -> Result<Endianness>;
-}
-
-impl<R: Read + Seek> ReadFileHeader for R {
-    fn read_file_header(&mut self) -> Result<Endianness> {
-        let mut buf = [0; 12];
-
-        self.read_exact(&mut buf)?;
-        self.seek(SeekFrom::Current(-(buf.len() as i64)))?;
-
-        let block_type = NativeEndian::read_u32(&buf[..4]);
-
-        if block_type != SectionHeader::block_type() as u32 {
-            bail!("file MUST begin with a Section Header Block.")
-        }
-
-        let byte_order_magic = &buf[8..12];
-
-        if byte_order_magic == BYTE_ORDER_MAGIC_LE {
-            Ok(Endianness::Little)
-        } else if byte_order_magic == BYTE_ORDER_MAGIC_BE {
-            Ok(Endianness::Big)
-        } else {
-            bail!("unkwnon byte order magic word: {:?}", byte_order_magic)
-        }
     }
 }
 
