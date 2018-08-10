@@ -1,0 +1,141 @@
+11:16:19.466743 IP 172.16.11.12.64565 > 74.125.19.17.443: Flags [P.], seq 3336115408:3336115435, ack 3307089343, win 65535, options [nop,nop,TS val 444433452 ecr 935680176], length 27
+11:16:19.467465 IP 172.16.11.12.64565 > 74.125.19.17.443: Flags [F.], seq 27, ack 1, win 65535, options [nop,nop,TS val 444433452 ecr 935680176], length 0
+11:16:19.488320 IP 74.125.19.17.443 > 172.16.11.12.64565: Flags [.], ack 27, win 283, options [nop,nop,TS val 935804965 ecr 444433452], length 0
+11:16:19.488369 IP 172.16.11.12.64565 > 74.125.19.17.443: Flags [F.], seq 27, ack 1, win 65535, options [nop,nop,TS val 444433452 ecr 935804965], length 0
+11:16:19.489327 IP 74.125.19.17.443 > 172.16.11.12.64565: Flags [F.], seq 1, ack 27, win 283, options [nop,nop,TS val 935804965 ecr 444433452], length 0
+11:16:19.489354 IP 172.16.11.12.64565 > 74.125.19.17.443: Flags [F.], seq 27, ack 2, win 65535, options [nop,nop,TS val 444433452 ecr 935804965], length 0
+11:16:19.492985 IP 74.125.19.17.443 > 172.16.11.12.64565: Flags [.], ack 28, win 283, options [nop,nop,TS val 935804970 ecr 444433452], length 0
+11:16:19.493041 IP 172.16.11.12.64565 > 74.125.19.17.443: Flags [.], ack 2, win 65535, options [nop,nop,TS val 444433452 ecr 935804970], length 0
+11:16:19.508221 IP 74.125.19.17.443 > 172.16.11.12.64565: Flags [.], ack 28, win 283, options [nop,nop,TS val 935804984 ecr 444433452,nop,nop,sack 1 {27:28}], length 0
+11:16:20.015741 ARP, Request who-has 172.16.11.194 tell 172.16.11.1, length 28
+11:16:20.653563 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [S], seq 3904319675, win 65535, options [mss 1460,nop,wscale 3,nop,nop,TS val 444433464 ecr 0,sackOK,eol], length 0
+11:16:20.748622 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [S.], seq 3971588985, ack 3904319676, win 4380, options [mss 1460,nop,wscale 5,nop,nop,TS val 2867298248 ecr 444433464,sackOK,eol], length 0
+11:16:20.748680 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 1, win 65535, options [nop,nop,TS val 444433464 ecr 2867298248], length 0
+11:16:20.748796 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [P.], seq 1:470, ack 1, win 65535, options [nop,nop,TS val 444433464 ecr 2867298248], length 469: HTTP: GET / HTTP/1.1
+11:16:20.847376 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], ack 470, win 151, options [nop,nop,TS val 2867298346 ecr 444433464], length 0
+11:16:20.858990 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 1:1449, ack 470, win 151, options [nop,nop,TS val 2867298356 ecr 444433464], length 1448: HTTP: HTTP/1.1 200 OK
+11:16:20.873217 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 1449:2897, ack 470, win 151, options [nop,nop,TS val 2867298356 ecr 444433464], length 1448: HTTP
+11:16:20.873271 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 2897, win 65522, options [nop,nop,TS val 444433466 ecr 2867298356], length 0
+11:16:20.887700 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [P.], seq 2897:4345, ack 470, win 151, options [nop,nop,TS val 2867298356 ecr 444433464], length 1448: HTTP
+11:16:20.887747 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 4345, win 65522, options [nop,nop,TS val 444433466 ecr 2867298356], length 0
+11:16:20.917638 IP 172.16.11.12.54639 > 172.16.11.1.53: 5026+ A? e872.g.akamaiedge.net. (39)
+11:16:20.928160 IP 172.16.11.12.59368 > 172.16.11.1.53: 5419+ AAAA? e872.g.akamaiedge.net. (39)
+11:16:20.959680 IP 172.16.11.1.53 > 172.16.11.12.54639: 5026 1/0/0 A 96.17.211.172 (55)
+11:16:21.008800 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 4345:5793, ack 470, win 151, options [nop,nop,TS val 2867298480 ecr 444433466], length 1448: HTTP
+11:16:21.023275 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 5793:7241, ack 470, win 151, options [nop,nop,TS val 2867298480 ecr 444433466], length 1448: HTTP
+11:16:21.023322 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 7241, win 65522, options [nop,nop,TS val 444433467 ecr 2867298480], length 0
+11:16:21.037769 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 7241:8689, ack 470, win 151, options [nop,nop,TS val 2867298480 ecr 444433466], length 1448: HTTP
+11:16:21.051175 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 8689, win 65535, options [nop,nop,TS val 444433467 ecr 2867298480], length 0
+11:16:21.054791 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 8689:10137, ack 470, win 151, options [nop,nop,TS val 2867298480 ecr 444433466], length 1448: HTTP
+11:16:21.069306 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 10137:11585, ack 470, win 151, options [nop,nop,TS val 2867298486 ecr 444433466], length 1448: HTTP
+11:16:21.069389 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 11585, win 65535, options [nop,nop,TS val 444433468 ecr 2867298480], length 0
+11:16:21.071626 IP 172.16.11.12.64582 > 96.17.211.172.80: Flags [S], seq 3461178317, win 65535, options [mss 1460,nop,wscale 3,nop,nop,TS val 444433468 ecr 0,sackOK,eol], length 0
+11:16:21.071695 IP 172.16.11.12.64583 > 96.17.211.172.80: Flags [S], seq 3561877165, win 65535, options [mss 1460,nop,wscale 3,nop,nop,TS val 444433468 ecr 0,sackOK,eol], length 0
+11:16:21.096884 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 11585:13033, ack 470, win 151, options [nop,nop,TS val 2867298486 ecr 444433466], length 1448: HTTP
+11:16:21.097418 IP 172.16.11.1.53 > 172.16.11.12.59368: 5419 0/0/0 (39)
+11:16:21.097443 IP 172.16.11.12 > 172.16.11.1: ICMP 172.16.11.12 udp port 59368 unreachable, length 36
+11:16:21.127587 IP 96.17.211.172.80 > 172.16.11.12.64582: Flags [S.], seq 2957971405, ack 3461178318, win 5792, options [mss 1460,sackOK,TS val 1310420135 ecr 444433468,nop,wscale 1], length 0
+11:16:21.127638 IP 172.16.11.12.64582 > 96.17.211.172.80: Flags [.], ack 1, win 65535, options [nop,nop,TS val 444433468 ecr 1310420135], length 0
+11:16:21.127719 IP 172.16.11.12.64582 > 96.17.211.172.80: Flags [P.], seq 1:507, ack 1, win 65535, options [nop,nop,TS val 444433468 ecr 1310420135], length 506: HTTP: GET /sd/idlecore-tidied.css?T_2_5_0_300 HTTP/1.1
+11:16:21.128536 IP 96.17.211.172.80 > 172.16.11.12.64583: Flags [S.], seq 3639459386, ack 3561877166, win 5792, options [mss 1460,sackOK,TS val 864327791 ecr 444433468,nop,wscale 1], length 0
+11:16:21.128569 IP 172.16.11.12.64583 > 96.17.211.172.80: Flags [.], ack 1, win 65535, options [nop,nop,TS val 444433468 ecr 864327791], length 0
+11:16:21.128632 IP 172.16.11.12.64583 > 96.17.211.172.80: Flags [P.], seq 1:496, ack 1, win 65535, options [nop,nop,TS val 444433468 ecr 864327791], length 495: HTTP: GET /sd/print.css?T_2_5_0_300 HTTP/1.1
+11:16:21.155849 IP 96.17.211.172.80 > 172.16.11.12.64582: Flags [.], ack 507, win 3216, options [nop,nop,TS val 1310420164 ecr 444433468], length 0
+11:16:21.157138 IP 96.17.211.172.80 > 172.16.11.12.64583: Flags [.], ack 496, win 3216, options [nop,nop,TS val 864327819 ecr 444433468], length 0
+11:16:21.198434 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 13033:14481, ack 470, win 151, options [nop,nop,TS val 2867298697 ecr 444433467], length 1448: HTTP
+11:16:21.198541 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 14481, win 65535, options [nop,nop,TS val 444433469 ecr 2867298486], length 0
+11:16:21.199790 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 14481:15929, ack 470, win 151, options [nop,nop,TS val 2867298697 ecr 444433467], length 1448: HTTP
+11:16:21.200599 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 15929:17377, ack 470, win 151, options [nop,nop,TS val 2867298697 ecr 444433467], length 1448: HTTP
+11:16:21.200664 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 17377, win 65535, options [nop,nop,TS val 444433469 ecr 2867298697], length 0
+11:16:21.201399 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 17377:18825, ack 470, win 151, options [nop,nop,TS val 2867298697 ecr 444433467], length 1448: HTTP
+11:16:21.202192 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 18825:20273, ack 470, win 151, options [nop,nop,TS val 2867298697 ecr 444433467], length 1448: HTTP
+11:16:21.202230 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 20273, win 65535, options [nop,nop,TS val 444433469 ecr 2867298697], length 0
+11:16:21.203026 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 20273:21721, ack 470, win 151, options [nop,nop,TS val 2867298697 ecr 444433467], length 1448: HTTP
+11:16:21.203058 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 21721, win 65522, options [nop,nop,TS val 444433469 ecr 2867298697], length 0
+11:16:21.203857 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 21721:23169, ack 470, win 151, options [nop,nop,TS val 2867298697 ecr 444433468], length 1448: HTTP
+11:16:21.204419 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [P.], seq 23169:23748, ack 470, win 151, options [nop,nop,TS val 2867298697 ecr 444433468], length 579: HTTP
+11:16:21.204447 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 23748, win 65535, options [nop,nop,TS val 444433469 ecr 2867298697], length 0
+11:16:21.205240 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 23748:25196, ack 470, win 151, options [nop,nop,TS val 2867298697 ecr 444433468], length 1448: HTTP
+11:16:21.206033 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [P.], seq 25196:26644, ack 470, win 151, options [nop,nop,TS val 2867298697 ecr 444433468], length 1448: HTTP
+11:16:21.206057 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 26644, win 65522, options [nop,nop,TS val 444433469 ecr 2867298697], length 0
+11:16:21.261381 IP 172.16.11.12.64584 > 96.17.211.172.80: Flags [S], seq 3415254472, win 65535, options [mss 1460,nop,wscale 3,nop,nop,TS val 444433470 ecr 0,sackOK,eol], length 0
+11:16:21.261490 IP 172.16.11.12.64585 > 96.17.211.172.80: Flags [S], seq 4017838499, win 65535, options [mss 1460,nop,wscale 3,nop,nop,TS val 444433470 ecr 0,sackOK,eol], length 0
+11:16:21.285193 IP 96.17.211.172.80 > 172.16.11.12.64584: Flags [S.], seq 2962992004, ack 3415254473, win 5792, options [mss 1460,sackOK,TS val 1310420293 ecr 444433470,nop,wscale 1], length 0
+11:16:21.285267 IP 172.16.11.12.64584 > 96.17.211.172.80: Flags [.], ack 1, win 65535, options [nop,nop,TS val 444433470 ecr 1310420293], length 0
+11:16:21.285351 IP 172.16.11.12.64584 > 96.17.211.172.80: Flags [P.], seq 1:507, ack 1, win 65535, options [nop,nop,TS val 444433470 ecr 1310420293], length 506: HTTP: GET /sd/facebook_icon.png HTTP/1.1
+11:16:21.289985 IP 96.17.211.172.80 > 172.16.11.12.64585: Flags [S.], seq 3633405914, ack 4017838500, win 5792, options [mss 1460,sackOK,TS val 864327953 ecr 444433470,nop,wscale 1], length 0
+11:16:21.290056 IP 172.16.11.12.64585 > 96.17.211.172.80: Flags [.], ack 1, win 65535, options [nop,nop,TS val 444433470 ecr 864327953], length 0
+11:16:21.290200 IP 172.16.11.12.64585 > 96.17.211.172.80: Flags [P.], seq 1:506, ack 1, win 65535, options [nop,nop,TS val 444433470 ecr 864327953], length 505: HTTP: GET /sd/twitter_icon.png HTTP/1.1
+11:16:21.300299 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 26644:28092, ack 470, win 151, options [nop,nop,TS val 2867298798 ecr 444433469], length 1448: HTTP
+11:16:21.301080 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 28092:29540, ack 470, win 151, options [nop,nop,TS val 2867298798 ecr 444433469], length 1448: HTTP
+11:16:21.301143 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 29540, win 65535, options [nop,nop,TS val 444433470 ecr 2867298798], length 0
+11:16:21.301889 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 29540:30988, ack 470, win 151, options [nop,nop,TS val 2867298798 ecr 444433469], length 1448: HTTP
+11:16:21.302718 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 30988:32436, ack 470, win 151, options [nop,nop,TS val 2867298798 ecr 444433469], length 1448: HTTP
+11:16:21.302784 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 32436, win 65535, options [nop,nop,TS val 444433470 ecr 2867298798], length 0
+11:16:21.304190 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 32436:33884, ack 470, win 151, options [nop,nop,TS val 2867298802 ecr 444433469], length 1448: HTTP
+11:16:21.305104 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 33884:35332, ack 470, win 151, options [nop,nop,TS val 2867298802 ecr 444433469], length 1448: HTTP
+11:16:21.305159 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 35332, win 65535, options [nop,nop,TS val 444433470 ecr 2867298802], length 0
+11:16:21.305919 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 35332:36780, ack 470, win 151, options [nop,nop,TS val 2867298802 ecr 444433469], length 1448: HTTP
+11:16:21.306735 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 36780:38228, ack 470, win 151, options [nop,nop,TS val 2867298802 ecr 444433469], length 1448: HTTP
+11:16:21.306787 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 38228, win 65535, options [nop,nop,TS val 444433470 ecr 2867298802], length 0
+11:16:21.321351 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 38228:39676, ack 470, win 151, options [nop,nop,TS val 2867298802 ecr 444433469], length 1448: HTTP
+11:16:21.321417 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 39676, win 65522, options [nop,nop,TS val 444433470 ecr 2867298802], length 0
+11:16:21.322414 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 39676:41124, ack 470, win 151, options [nop,nop,TS val 2867298802 ecr 444433469], length 1448: HTTP
+11:16:21.323233 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [.], seq 41124:42572, ack 470, win 151, options [nop,nop,TS val 2867298802 ecr 444433469], length 1448: HTTP
+11:16:21.323280 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 42572, win 65535, options [nop,nop,TS val 444433470 ecr 2867298802], length 0
+11:16:21.323500 IP 96.17.211.172.80 > 172.16.11.12.64584: Flags [.], ack 507, win 3216, options [nop,nop,TS val 1310420317 ecr 444433470], length 0
+11:16:21.324365 IP 96.17.211.172.80 > 172.16.11.12.64584: Flags [.], seq 1:1449, ack 507, win 3216, options [nop,nop,TS val 1310420318 ecr 444433470], length 1448: HTTP: HTTP/1.1 200 OK
+11:16:21.325178 IP 96.17.211.172.80 > 172.16.11.12.64584: Flags [.], seq 1449:2897, ack 507, win 3216, options [nop,nop,TS val 1310420318 ecr 444433470], length 1448: HTTP
+11:16:21.325201 IP 172.16.11.12.64584 > 96.17.211.172.80: Flags [.], ack 2897, win 65522, options [nop,nop,TS val 444433470 ecr 1310420318], length 0
+11:16:21.325874 IP 96.17.211.172.80 > 172.16.11.12.64584: Flags [P.], seq 2897:3814, ack 507, win 3216, options [nop,nop,TS val 1310420318 ecr 444433470], length 917: HTTP
+11:16:21.325895 IP 172.16.11.12.64584 > 96.17.211.172.80: Flags [.], ack 3814, win 65535, options [nop,nop,TS val 444433470 ecr 1310420318], length 0
+11:16:21.326158 IP 96.17.211.172.80 > 172.16.11.12.64585: Flags [.], ack 506, win 3216, options [nop,nop,TS val 864327977 ecr 444433470], length 0
+11:16:21.326686 IP 96.17.211.172.80 > 172.16.11.12.64585: Flags [P.], seq 1:270, ack 506, win 3216, options [nop,nop,TS val 864327978 ecr 444433470], length 269: HTTP: HTTP/1.1 304 Not Modified
+11:16:21.326705 IP 172.16.11.12.64585 > 96.17.211.172.80: Flags [.], ack 270, win 65535, options [nop,nop,TS val 444433470 ecr 864327978], length 0
+11:16:21.327202 IP 96.17.211.172.80 > 172.16.11.12.64583: Flags [P.], seq 1:293, ack 496, win 3216, options [nop,nop,TS val 864327982 ecr 444433468], length 292: HTTP: HTTP/1.1 304 Not Modified
+11:16:21.327222 IP 172.16.11.12.64583 > 96.17.211.172.80: Flags [.], ack 293, win 65535, options [nop,nop,TS val 444433470 ecr 864327982], length 0
+11:16:21.426388 IP 216.34.181.45.80 > 172.16.11.12.64581: Flags [P.], seq 42572:42965, ack 470, win 151, options [nop,nop,TS val 2867298926 ecr 444433470], length 393: HTTP
+11:16:21.426437 IP 172.16.11.12.64581 > 216.34.181.45.80: Flags [.], ack 42965, win 65535, options [nop,nop,TS val 444433471 ecr 2867298926], length 0
+11:16:21.530867 IP 96.17.211.172.80 > 172.16.11.12.64582: Flags [P.], seq 1:294, ack 507, win 3216, options [nop,nop,TS val 1310420539 ecr 444433468], length 293: HTTP: HTTP/1.1 304 Not Modified
+11:16:21.530925 IP 172.16.11.12.64582 > 96.17.211.172.80: Flags [.], ack 294, win 65535, options [nop,nop,TS val 444433472 ecr 1310420539], length 0
+11:16:21.531719 IP 96.17.211.172.80 > 172.16.11.12.64582: Flags [F.], seq 294, ack 507, win 3216, options [nop,nop,TS val 1310420539 ecr 444433468], length 0
+11:16:21.531747 IP 172.16.11.12.64582 > 96.17.211.172.80: Flags [.], ack 295, win 65535, options [nop,nop,TS val 444433472 ecr 1310420539], length 0
+11:16:21.577512 IP 172.16.11.12.64584 > 96.17.211.172.80: Flags [P.], seq 507:1058, ack 3814, win 65535, options [nop,nop,TS val 444433473 ecr 1310420318], length 551: HTTP: GET /sd/cs_i2_gradients.png?T_2_5_0_299 HTTP/1.1
+11:16:21.580736 IP 172.16.11.12.64585 > 96.17.211.172.80: Flags [P.], seq 506:1037, ack 270, win 65535, options [nop,nop,TS val 444433473 ecr 864327978], length 531: HTTP: GET /sd/logo2.png HTTP/1.1
+11:16:21.584223 IP 172.16.11.12.64583 > 96.17.211.172.80: Flags [P.], seq 496:1053, ack 293, win 65535, options [nop,nop,TS val 444433473 ecr 864327982], length 557: HTTP: GET /sd/cs_sic_controls_new.png?T_2_5_0_299 HTTP/1.1
+11:16:21.607329 IP 96.17.211.172.80 > 172.16.11.12.64584: Flags [P.], seq 3814:4082, ack 1058, win 3857, options [nop,nop,TS val 1310420610 ecr 444433473], length 268: HTTP: HTTP/1.1 304 Not Modified
+11:16:21.607385 IP 172.16.11.12.64584 > 96.17.211.172.80: Flags [.], ack 4082, win 65535, options [nop,nop,TS val 444433473 ecr 1310420610], length 0
+11:16:21.607549 IP 96.17.211.172.80 > 172.16.11.12.64583: Flags [.], ack 1053, win 3899, options [nop,nop,TS val 864328271 ecr 444433473], length 0
+11:16:21.608588 IP 96.17.211.172.80 > 172.16.11.12.64585: Flags [P.], seq 270:540, ack 1037, win 3752, options [nop,nop,TS val 864328271 ecr 444433473], length 270: HTTP: HTTP/1.1 304 Not Modified
+11:16:21.608612 IP 172.16.11.12.64585 > 96.17.211.172.80: Flags [.], ack 540, win 65535, options [nop,nop,TS val 444433473 ecr 864328271], length 0
+11:16:21.609587 IP 96.17.211.172.80 > 172.16.11.12.64583: Flags [P.], seq 293:563, ack 1053, win 3899, options [nop,nop,TS val 864328272 ecr 444433473], length 270: HTTP: HTTP/1.1 304 Not Modified
+11:16:21.609612 IP 172.16.11.12.64583 > 96.17.211.172.80: Flags [.], ack 563, win 65535, options [nop,nop,TS val 444433473 ecr 864328272], length 0
+11:16:21.941306 IP 172.16.11.12.60392 > 172.16.11.1.53: 61992+ A? amd.vendors.slashdot.org. (42)
+11:16:21.951753 IP 172.16.11.12.60392 > 172.16.11.1.53: 61992+ A? amd.vendors.slashdot.org. (42)
+11:16:21.956658 IP 172.16.11.1.53 > 172.16.11.12.60392: 61992 1/0/0 A 216.34.181.47 (58)
+11:16:21.957454 IP 172.16.11.1.53 > 172.16.11.12.60392: 61992 1/0/0 A 216.34.181.47 (58)
+11:16:21.962723 IP 172.16.11.12.59222 > 172.16.11.1.53: 25354+ A? rss.slashdot.org. (34)
+11:16:21.972574 IP 172.16.11.12.59925 > 172.16.11.1.53: 19080+ AAAA? rss.slashdot.org. (34)
+11:16:21.977141 IP 172.16.11.1.53 > 172.16.11.12.59222: 25354 3/0/0 CNAME sourceforge.feedproxy.ghs.google.com., CNAME ghs.l.google.com., A 74.125.47.121 (120)
+11:16:21.981954 IP 172.16.11.12.50282 > 172.16.11.1.53: 45100+ A? apache.slashdot.org. (37)
+11:16:22.043529 IP 172.16.11.1.53 > 172.16.11.12.50282: 45100 1/0/0 A 216.34.181.48 (53)
+11:16:22.043585 IP 172.16.11.12 > 172.16.11.1: ICMP 172.16.11.12 udp port 50282 unreachable, length 36
+11:16:22.049069 IP 172.16.11.1.53 > 172.16.11.12.59925: 19080 2/0/0 CNAME sourceforge.feedproxy.ghs.google.com., CNAME ghs.l.google.com. (104)
+11:16:22.049091 IP 172.16.11.12 > 172.16.11.1: ICMP 172.16.11.12 udp port 59925 unreachable, length 36
+11:16:22.103072 IP 172.16.11.12.57238 > 172.16.11.1.53: 2914+ A? bsd.slashdot.org. (34)
+11:16:22.113323 IP 172.16.11.12.57238 > 172.16.11.1.53: 2914+ A? bsd.slashdot.org. (34)
+11:16:22.156342 IP 172.16.11.12.59785 > 172.16.11.1.53: 20374+ A? entertainment.slashdot.org. (44)
+11:16:22.165740 IP 172.16.11.1.53 > 172.16.11.12.57238: 2914 1/0/0 A 216.34.181.48 (50)
+11:16:22.165776 IP 172.16.11.12 > 172.16.11.1: ICMP 172.16.11.12 udp port 57238 unreachable, length 36
+11:16:22.167586 IP 172.16.11.1.53 > 172.16.11.12.57238: 2914 1/0/0 A 216.34.181.48 (50)
+11:16:22.167609 IP 172.16.11.12 > 172.16.11.1: ICMP 172.16.11.12 udp port 57238 unreachable, length 36
+11:16:22.167948 IP 172.16.11.12.51370 > 172.16.11.1.53: 41481+ AAAA? entertainment.slashdot.org. (44)
+11:16:22.176182 IP 172.16.11.12.57360 > 172.16.11.1.53: 517+ A? features.slashdot.org. (39)
+11:16:22.179388 IP 172.16.11.1.53 > 172.16.11.12.59785: 20374 1/0/0 A 216.34.181.48 (60)
+11:16:22.185783 IP 172.16.11.12.56758 > 172.16.11.1.53: 57782+ A? games.slashdot.org. (36)
+11:16:22.193901 IP 172.16.11.1.53 > 172.16.11.12.51370: 41481 0/0/0 (44)
+11:16:22.196084 IP 172.16.11.12.51145 > 172.16.11.1.53: 54819+ AAAA? games.slashdot.org. (36)
+11:16:22.202223 IP 172.16.11.1.53 > 172.16.11.12.56758: 57782 1/0/0 A 216.34.181.48 (52)
+11:16:22.214655 IP 172.16.11.1.53 > 172.16.11.12.51145: 54819 0/0/0 (36)
+11:16:22.246264 IP 172.16.11.1.53 > 172.16.11.12.57360: 517 1/0/0 A 216.34.181.48 (55)
+11:16:22.246309 IP 172.16.11.12 > 172.16.11.1: ICMP 172.16.11.12 udp port 57360 unreachable, length 36
